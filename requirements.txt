@@ -1,6 +1,6 @@
 gunicorn
 gevent
-geventwebsocket
+gevent-websocket
 flask
 flask_socketio
 google
