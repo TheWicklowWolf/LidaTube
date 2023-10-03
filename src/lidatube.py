@@ -44,6 +44,8 @@ class Data_Handler:
                         socketio.emit("metube_status", {"Status": "Error", "Data": ret + " Error Adding to metube"})
                 else:
                     socketio.emit("metube_status", {"Status": "Error", "Data": item + " No Playlist Found"})
+                    self.index += 1
+                    continue
 
                 self.sleeping_flag = True
                 if self.stop_event.wait(timeout=self.metubeSleepInterval):
@@ -133,6 +135,7 @@ def metube(data):
             data_handler.metube_items.append(full_item)
 
         if data_handler.in_progress_flag == False:
+            data_handler.index = 0
             data_handler.in_progress_flag = True
             thread = threading.Thread(target=data_handler.add_items)
             thread.start()
@@ -185,9 +188,8 @@ def stopper():
 def reset():
     stopper()
     data_handler.reset()
-    data_handler.sleeping_flag = False
-    data_handler.complete_flag = False
-    data_handler.in_progress_flag = False
+    custom_data = {"Data": data_handler.metube_items, "Sleeping": data_handler.sleeping_flag, "Running": data_handler.in_progress_flag, "Complete": data_handler.complete_flag}
+    socketio.emit("progress_status", custom_data)
 
 
 if __name__ == "__main__":
