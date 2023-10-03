@@ -1,0 +1,6 @@
+gunicorn
+gevent
+flask
+flask_socketio
+google
+requests

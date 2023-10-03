@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="{{url_for('static', filename='logo.png')}}">
+  <link rel="stylesheet" href="{{url_for('static', filename='style.css')}}">
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  <!-- Bootstrap JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.min.js"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <!-- Socket IO -->
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <title>lidatube</title>
+</head>
+
+<body>
+  <div class="topBar">
+    <h1 class="title">lidatube</h1>
+    <div class="settings-icon" id="settings-icon" data-bs-toggle="modal" data-bs-target="#configModal">
+      <i class="fa fa-gear" style="font-size:40px;color:white"></i>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal fade" id="configModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exampleModalLabel">Configuration</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+
+        </div>
+        <div class="modal-body">
+          <div id="saveMessage" style="display: none;" class="alert alert-success mt-3">
+            Settings saved successfully.
+          </div>
+          <div class="form-group">
+            <label for="lidarrMaxTags">Lidarr Max Album to retrieve:</label>
+            <input type="number" class="form-control" id="lidarrMaxTags" placeholder="Enter Lidarr Max Tags">
+          </div>
+          <div class="form-group">
+            <label for="lidarrApiTimeout">Lidarr Timeout (Seconds):</label>
+            <input type="number" class="form-control" id="lidarrApiTimeout" placeholder="Enter Lidarr Timeout">
+          </div>
+          <div class="form-group">
+            <label for="metubeSleepInterval">Metube Sleep Interval (Seconds):</label>
+            <input type="number" class="form-control" id="metubeSleepInterval"
+              placeholder="Enter Metube Sleep Interval">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" id="saveChangesBtn" class="btn btn-primary">Save changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="left-and-right">
+    <!-- Left Panel -->
+    <div class="panel left">
+      <div class="non-scroll-content-left">
+        <div class="logo-and-title">
+          <img src="{{url_for('static', filename='lidarr.svg')}}" alt="Logo" class="logo">
+          <h2 class="panel-title">Lidarr</h2>
+        </div>
+        <div class="content">
+          <button class="btn btn-primary" id="lidarr_button">Get Missing List</button>
+          <div class="status-and-spinner">
+            <div id="lidarr_spinner" class="spinner-border text-primary" style=" display: none;" role="status">
+              <span class="sr-only">Loading...</span>
+            </div>
+            <div class="status-only">
+              <span id="lidarr_status"></span>
+            </div>
+          </div>
+        </div>
+        <div id="select-all-container">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="select-all">
+            <label class="form-check-label" for="select-all">Select All</label>
+          </div>
+        </div>
+      </div>
+
+      <div id="lidarrItemList" class="scrollable-content">
+      </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="panel right">
+      <div class="non-scroll-content-right">
+        <div class="text-logo-and-title">
+          <div class="logo-and-title">
+            <img src="{{url_for('static', filename='metube.svg')}}" alt="Logo" class="logo">
+            <h2 class="panel-title">Metube</h2>
+          </div>
+          <div class="content">
+            <div class="form-group">
+              <div class="input-group">
+                <button class="btn btn-primary" id="metube_button">Add</button>
+                <button class="btn btn-warning" id="metube_button_stop">Stop</button>
+                <button class="btn btn-danger" id="metube_button_reset">Reset</button>
+
+                <div class="status-and-spinner">
+                  <div id="metube_spinner" class="spinner-border text-primary" style=" display: none;" role="status">
+                    <span class="sr-only">Loading...</span>
+                  </div>
+                  <div class="status-only">
+                    <span id="metube_status"></span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="leds">
+          <div class="status-container">
+            <div class="status-item">
+              <div class="led" id="running-led"></div>
+              <label>Running</label>
+            </div>
+            <div class="status-item">
+              <div class="led" id="sleeping-led"></div>
+              <label>Sleeping</label>
+            </div>
+            <div class="status-item">
+              <div class="led" id="complete-led"></div>
+              <label>Complete</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="metubeItemList" class="scrollable-content">
+        <table id="metube-data-table">
+          <thead>
+            <tr>
+              <th>Search Item</th>
+              <th>Link Found</th>
+              <th>Added to Metube</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Data will be populated dynamically using JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="{{url_for('static',filename='script.js')}}"></script>
+</body>
+
+</html>

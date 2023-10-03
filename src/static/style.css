@@ -1,0 +1,190 @@
+
+body {
+    margin: 0;
+    padding: 0;
+}
+
+.topBar {
+    background-color: #333;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 10px 10px 10px 10px;
+}
+
+.settings-icon{
+    align-items: center;
+    margin-right: 10px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.settings-icon:active {
+transform: scale(0.95);
+box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+
+.logo {
+    max-width: 60px;
+    margin-right: 0px;
+}
+
+.title {
+    margin: 0;
+    font-size: 40px;
+    flex-grow: 1;
+    text-align: center;
+    width: 100%;
+}
+
+.container {
+    display: flex;
+    width: 100%;
+
+}
+.left-and-right{
+    display: flex;
+}
+
+.panel {
+    width: 47.5%;
+    height: 82.5vh;    
+    float: left;
+    box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.3); 
+    margin: 15px; 
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel.right {
+    float: right;
+}
+
+.non-scroll-content-left{
+    background-color: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+}
+.non-scroll-content-right{
+    background-color: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+}
+
+.panel-title {
+    background-color: #f0f0f0;
+    color: #333;
+    padding: 10px 10px 0px 10px;
+    margin: 0;
+}
+
+.leds{
+    display: inline-flex;
+    margin-left: auto;
+}
+
+.status-container {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    justify-content: flex-end;
+    margin-right: 5px;
+}
+
+.text-logo-and-title
+{
+    display: block;
+}
+
+.status-item {
+    display: flex;
+    align-items: start;
+    margin: 10px;
+}
+
+.led {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+.led.true {
+    background-color: green;
+}
+
+.led.false {
+    background-color: blue;
+}
+
+.content {
+    margin: 5px 5px 5px 5px;
+    background-color: #f0f0f0;
+    display: flex;
+}
+.status-and-spinner {
+    margin-left: 5px;
+    display: inline-block; 
+    vertical-align: middle;
+}
+
+.status-only {
+    margin: 5px;
+    display: inline-block; 
+    vertical-align: middle; 
+}
+
+.spinner-border {
+    vertical-align: middle; 
+}
+.scrollable-content {
+    flex: 1; 
+    overflow: auto; 
+    margin: 0px 10px 10px 0px;
+}
+
+.form-group {
+    margin-bottom: 0rem !important;
+}
+
+.logo-and-title{
+    display: flex;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th, td {
+    border: 1px solid #dddddd;
+    text-align: left;
+    padding: 8px;
+}
+
+td {
+    white-space: normal;
+}
+
+th, td {
+    min-width: 100px;
+}
+
+@media screen and (max-width: 600px) {
+    .container {
+        width: 98%;
+    }
+    .panel{
+        width: 92.5vw;
+    }
+    .panel.left {
+        height: 39vh;  
+    }
+    .panel.right {
+        height: 39vh;
+    }
+    
+    .left-and-right{
+        flex-direction: column;
+    }
+}
