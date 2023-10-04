@@ -18,22 +18,50 @@ class Data_Handler:
     def reset(self):
         self.lidarr_items = []
         self.metube_items = []
-        self.stop_event = threading.Event()
+        self.stop_lidarr_event = threading.Event()
+        self.stop_metube_event = threading.Event()
         self.stop_monitoring_event = threading.Event()
         self.monitor_active_flag = False
         self.in_progress_flag = False
         self.sleeping_flag = False
         self.complete_flag = False
-        self.metubeSleepInterval = 300
-        self.lidarrApiTimeout = 120
         self.lidarrMaxTags = 100
+        self.lidarrApiTimeout = 120
+        self.youtubeSuffix = "full album YouTube playlist"
+        self.metubeSleepInterval = 450
         self.index = 0
+
+    def get_missing_from_lidarr(self):
+        try:
+            self.stop_lidarr_event.clear()
+            self.lidarr_items = []
+            endpoint = f"{self.lidarrAddress}/api/v1/wanted/missing?includeArtist=true"
+            params = {"apikey": self.lidarrAPIKey, "pageSize": self.lidarrMaxTags, "sortKey": "artists.sortname", "sortDir": "asc"}
+            response = requests.get(endpoint, params=params, timeout=self.lidarrApiTimeout)
+            if response.status_code == 200:
+                wanted_missing_albums = response.json()
+                for album in wanted_missing_albums["records"]:
+                    self.lidarr_items.append(album["artist"]["artistName"] + " - " + album["title"])
+                ret = {"Status": "Success", "Data": self.lidarr_items}
+            else:
+                ret = {"Status": "Error", "Code": response.status_code, "Data": response.text}
+
+        except Exception as e:
+            logger.error(str(e))
+            ret = {"Status": "Error", "Code": 500, "Data": str(e)}
+
+        finally:
+            if not self.stop_lidarr_event.is_set():
+                socketio.emit("lidarr_status", ret)
+            else:
+                ret = {"Status": "Error", "Code": "", "Data": ""}
+                socketio.emit("lidarr_status", ret)
 
     def add_items(self):
         try:
-            while not self.stop_event.is_set() and self.index < len(self.metube_items):
+            while not self.stop_metube_event.is_set() and self.index < len(self.metube_items):
                 item = self.metube_items[self.index]["Item"]
-                search_results = googlesearch.search(item + " full album YouTube playlist", stop=10)
+                search_results = googlesearch.search(item + self.youtubeSuffix, stop=10)
                 first_result = next((x for x in search_results if "playlist" in x), None)
                 if first_result:
                     self.metube_items[self.index]["Link Found"] = True
@@ -48,12 +76,12 @@ class Data_Handler:
                     continue
 
                 self.sleeping_flag = True
-                if self.stop_event.wait(timeout=self.metubeSleepInterval):
+                if self.stop_metube_event.wait(timeout=self.metubeSleepInterval):
                     break
                 self.sleeping_flag = False
                 self.index += 1
 
-            if not self.stop_event.is_set():
+            if not self.stop_metube_event.is_set():
                 self.complete_flag = True
                 self.in_progress_flag = False
                 self.sleeping_flag = False
@@ -88,12 +116,17 @@ app = Flask(__name__)
 app.secret_key = "secret_key"
 socketio = SocketIO(app)
 
-lidarrAddress = os.environ["lidarr_address"]
-lidarrAPIKey = os.environ["lidarr_api_key"]
-metubeAddress = os.environ["metube_address"]
-
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(message)s", datefmt="%d/%m/%Y %H:%M:%S", handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger()
+
+try:
+    lidarrAddress = os.environ["lidarr_address"]
+    lidarrAPIKey = os.environ["lidarr_api_key"]
+    metubeAddress = os.environ["metube_address"]
+except:
+    lidarrAddress = "http://192.168.1.2:8686"
+    lidarrAPIKey = "1234567890"
+    metubeAddress = "http://192.168.1.2:8080"
 
 data_handler = Data_Handler(lidarrAddress, lidarrAPIKey, metubeAddress)
 
@@ -105,30 +138,14 @@ def home():
 
 @socketio.on("lidarr")
 def lidarr():
-    try:
-        data_handler.lidarr_items = []
-        endpoint = f"{data_handler.lidarrAddress}/api/v1/wanted/missing?includeArtist=true"
-        params = {"apikey": data_handler.lidarrAPIKey, "pageSize": data_handler.lidarrMaxTags, "sortKey": "artists.sortname", "sortDir": "asc"}
-        response = requests.get(endpoint, params=params, timeout=data_handler.lidarrApiTimeout)
-        if response.status_code == 200:
-            wanted_missing_albums = response.json()
-            for album in wanted_missing_albums["records"]:
-                data_handler.lidarr_items.append(album["artist"]["artistName"] + " - " + album["title"])
-            ret = {"Status": "Success", "Data": data_handler.lidarr_items}
-        else:
-            ret = {"Status": "Error", "Code": response.status_code, "Data": response.text}
-
-    except Exception as e:
-        logger.error(str(e))
-        ret = {"Status": "Error", "Data": str(e)}
-    finally:
-        socketio.emit("lidarr_status", ret)
+    thread = threading.Thread(target=data_handler.get_missing_from_lidarr)
+    thread.start()
 
 
 @socketio.on("metube")
 def metube(data):
     try:
-        data_handler.stop_event.clear()
+        data_handler.stop_metube_event.clear()
         data_handler.complete_flag = False
         for item in data["Data"]:
             full_item = {"Item": item, "Link Found": False, "Added to Metube": False}
@@ -161,7 +178,7 @@ def connection():
 
 @socketio.on("loadSettings")
 def loadSettings():
-    data = {"lidarrMaxTags": data_handler.lidarrMaxTags, "lidarrApiTimeout": data_handler.lidarrApiTimeout, "metubeSleepInterval": data_handler.metubeSleepInterval}
+    data = {"lidarrMaxTags": data_handler.lidarrMaxTags, "lidarrApiTimeout": data_handler.lidarrApiTimeout, "youtubeSuffix": data_handler.youtubeSuffix, "metubeSleepInterval": data_handler.metubeSleepInterval}
     socketio.emit("settingsLoaded", data)
 
 
@@ -169,6 +186,7 @@ def loadSettings():
 def updateSettings(data):
     data_handler.lidarrMaxTags = int(data["lidarrMaxTags"])
     data_handler.lidarrApiTimeout = int(data["lidarrApiTimeout"])
+    data_handler.youtubeSuffix = data["youtubeSuffix"]
     data_handler.metubeSleepInterval = int(data["metubeSleepInterval"])
 
 
@@ -180,7 +198,8 @@ def disconnect():
 
 @socketio.on("stopper")
 def stopper():
-    data_handler.stop_event.set()
+    data_handler.stop_lidarr_event.set()
+    data_handler.stop_metube_event.set()
     data_handler.sleeping_flag = False
 
 

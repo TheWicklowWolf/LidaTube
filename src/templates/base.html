@@ -36,19 +36,23 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 
         </div>
-        <div class="modal-body">
+        <div class="modal-body custom-spacing">
           <div id="saveMessage" style="display: none;" class="alert alert-success mt-3">
             Settings saved successfully.
           </div>
-          <div class="form-group">
-            <label for="lidarrMaxTags">Lidarr Max Album to retrieve:</label>
+          <div class="form-group-modal">
+            <label for="lidarrMaxTags">Lidarr Max Albums to retrieve:</label>
             <input type="number" class="form-control" id="lidarrMaxTags" placeholder="Enter Lidarr Max Tags">
           </div>
-          <div class="form-group">
-            <label for="lidarrApiTimeout">Lidarr Timeout (Seconds):</label>
+          <div class="form-group-modal">
+            <label for="lidarrApiTimeout">Lidarr API Timeout (Seconds):</label>
             <input type="number" class="form-control" id="lidarrApiTimeout" placeholder="Enter Lidarr Timeout">
           </div>
-          <div class="form-group">
+          <div class="form-group-modal">
+            <label for="youtubeSuffix">YouTube search suffix term:</label>
+            <input type="text" class="form-control" id="youtubeSuffix" placeholder="Enter YouTube Suffix">
+          </div>
+          <div class="form-group-modal">
             <label for="metubeSleepInterval">Metube Sleep Interval (Seconds):</label>
             <input type="number" class="form-control" id="metubeSleepInterval"
               placeholder="Enter Metube Sleep Interval">
@@ -101,13 +105,13 @@
             <img src="{{url_for('static', filename='metube.svg')}}" alt="Logo" class="logo">
             <h2 class="panel-title">Metube</h2>
           </div>
+
           <div class="content">
             <div class="form-group">
               <div class="input-group">
                 <button class="btn btn-primary" id="metube_button">Add</button>
                 <button class="btn btn-warning" id="metube_button_stop">Stop</button>
                 <button class="btn btn-danger" id="metube_button_reset">Reset</button>
-
                 <div class="status-and-spinner">
                   <div id="metube_spinner" class="spinner-border text-primary" style=" display: none;" role="status">
                     <span class="sr-only">Loading...</span>
@@ -116,10 +120,10 @@
                     <span id="metube_status"></span>
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
+
         </div>
         <div class="leds">
           <div class="status-container">
@@ -138,6 +142,7 @@
           </div>
         </div>
       </div>
+
       <div id="metubeItemList" class="scrollable-content">
         <table id="metube-data-table">
           <thead>
@@ -154,8 +159,6 @@
       </div>
     </div>
   </div>
-
-
   <script src="{{url_for('static',filename='script.js')}}"></script>
 </body>
 

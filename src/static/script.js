@@ -16,6 +16,7 @@ var saveMessage = document.getElementById("saveMessage");
 var saveChangesButton = document.getElementById("saveChangesBtn");
 const lidarrMaxTags = document.getElementById("lidarrMaxTags");
 const lidarrApiTimeout = document.getElementById("lidarrApiTimeout");
+const youtubeSuffix = document.getElementById("youtubeSuffix");
 const metubeSleepInterval = document.getElementById("metubeSleepInterval");
 const runningLed = document.getElementById('running-led');
 const sleepingLed = document.getElementById('sleeping-led');
@@ -77,6 +78,7 @@ configModal.addEventListener('show.bs.modal', function (event) {
         lidarrMaxTags.value = settings.lidarrMaxTags;
         lidarrApiTimeout.value = settings.lidarrApiTimeout;
         metubeSleepInterval.value = settings.metubeSleepInterval;
+        youtubeSuffix.value = settings.youtubeSuffix;
         socket.off("settingsLoaded", handleSettingsLoaded);
     }
     socket.on("settingsLoaded", handleSettingsLoaded);
@@ -86,12 +88,13 @@ saveChangesButton.addEventListener("click", () => {
     socket.emit("updateSettings", {
         "lidarrMaxTags": lidarrMaxTags.value,
         "lidarrApiTimeout": lidarrApiTimeout.value,
-        "metubeSleepInterval": metubeSleepInterval.value
+        "metubeSleepInterval": metubeSleepInterval.value,
+        "youtubeSuffix": youtubeSuffix.value
     });
     saveMessage.style.display = "block";
     setTimeout(function () {
         saveMessage.style.display = "none";
-    }, 3000); // 3000 milliseconds = 3 seconds
+    }, 1000);
 });
 
 resetButton.addEventListener('click', function () {

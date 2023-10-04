@@ -117,6 +117,10 @@ box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
     background-color: blue;
 }
 
+.custom-spacing .form-group-modal {
+    margin-bottom: 15px; 
+}
+
 .content {
     margin: 5px 5px 5px 5px;
     background-color: #f0f0f0;
@@ -182,9 +186,11 @@ th, td {
     }
     .panel.right {
         height: 39vh;
-    }
-    
+    }    
     .left-and-right{
         flex-direction: column;
+    }
+    .custom-spacing .form-group-modal {
+        margin-bottom: 5px; 
     }
 }
