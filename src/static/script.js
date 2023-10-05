@@ -69,6 +69,8 @@ metubeButton.addEventListener('click', function () {
 
 stopButton.addEventListener('click', function () {
     socket.emit("stopper");
+    setLedStatus(runningLed, false);
+    setLedStatus(sleepingLed, false);
 });
 
 configModal.addEventListener('show.bs.modal', function (event) {
@@ -105,6 +107,9 @@ resetButton.addEventListener('click', function () {
     lidarrStatus.textContent = "";
     metubeSpinner.style.display = "none";
     metubeStatus.textContent = "";
+    setLedStatus(runningLed, false);
+    setLedStatus(sleepingLed, false);
+    setLedStatus(completeLed, false);
 });
 
 socket.on("lidarr_status", (response) => {
