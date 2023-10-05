@@ -26,3 +26,6 @@ services:
       - 5000:5000
     restart: unless-stopped
 ```
+
+---
+https://hub.docker.com/r/thewicklowwolf/lidatube
