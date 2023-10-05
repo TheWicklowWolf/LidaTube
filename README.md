@@ -33,10 +33,10 @@ services:
 <p align="center">
 
 
-![image](https://github.com/TheWicklowWolf/LidaTube/assets/111055425/1167ea8a-a4c4-4229-a46f-f5832b6e5469)
+![image](https://github.com/TheWicklowWolf/LidaTube/assets/111055425/312c56f1-5bd5-429a-a7a6-06106bb01758)
+
 
 </p>
 
----
 
 https://hub.docker.com/r/thewicklowwolf/lidatube
