@@ -103,7 +103,7 @@ class Data_Handler:
         if response.status_code == 200:
             return "Success"
         else:
-            return response.status_code + " : " + response.text
+            return str(response.status_code) + " : " + response.text
 
     def monitor(self):
         while not self.stop_monitoring_event.is_set():
