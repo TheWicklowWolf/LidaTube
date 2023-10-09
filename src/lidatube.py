@@ -13,6 +13,10 @@ class Data_Handler:
         self.full_metube_address = metubeAddress + "/add"
         self.lidarrAddress = lidarrAddress
         self.lidarrAPIKey = lidarrAPIKey
+        self.lidarrMaxTags = 250
+        self.lidarrApiTimeout = 120
+        self.youtubeSuffix = "full album YouTube playlist"
+        self.metubeSleepInterval = 450
         self.reset()
 
     def reset(self):
@@ -25,10 +29,6 @@ class Data_Handler:
         self.in_progress_flag = False
         self.sleeping_flag = False
         self.complete_flag = False
-        self.lidarrMaxTags = 100
-        self.lidarrApiTimeout = 120
-        self.youtubeSuffix = "full album YouTube playlist"
-        self.metubeSleepInterval = 450
         self.index = 0
 
     def get_missing_from_lidarr(self):
