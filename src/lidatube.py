@@ -61,7 +61,7 @@ class Data_Handler:
         try:
             while not self.stop_metube_event.is_set() and self.index < len(self.metube_items):
                 item = self.metube_items[self.index]["Item"]
-                search_results = googlesearch.search(item + self.youtubeSuffix, stop=10)
+                search_results = googlesearch.search(item + " " + self.youtubeSuffix, stop=10)
                 first_result = next((x for x in search_results if "playlist" in x), None)
                 if first_result:
                     self.metube_items[self.index]["Link Found"] = True
