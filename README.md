@@ -16,7 +16,7 @@ Web GUI for adding missing Lidarr albums to metube.
 ```yaml
 version: "2.1"
 services:
-  huntorr:
+  lidatube:
     image: thewicklowwolf/lidatube:latest
     container_name: lidatube
     environment:
