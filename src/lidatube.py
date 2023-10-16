@@ -116,11 +116,15 @@ class Data_Handler:
 
     def add_to_metube(self, link, folder):
         payload = {"url": link, "quality": "best", "format": "mp3", "folder": folder}
-        response = requests.post(self.full_metube_address, json=payload)
-        if response.status_code == 200:
-            return "Success"
-        else:
-            return str(response.status_code) + " : " + response.text
+        try:
+            response = requests.post(self.full_metube_address, json=payload)
+            if response.status_code == 200:
+                return "Success"
+            else:
+                return str(response.status_code) + " : " + response.text
+        except Exception as e:
+            logger.error("MeTube post-request error: " + str(e))
+            return "Failure : " + str(e)
 
     def monitor(self):
         while not self.stop_monitoring_event.is_set():
