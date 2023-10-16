@@ -102,9 +102,6 @@ saveChangesButton.addEventListener("click", () => {
 resetButton.addEventListener('click', function () {
     socket.emit("reset");
     metubeDataTable.innerHTML = '';
-    lidarrItemList.innerHTML = '';
-    lidarrSpinner.style.display = "none";
-    lidarrStatus.textContent = "";
     metubeSpinner.style.display = "none";
     metubeStatus.textContent = "";
     setLedStatus(runningLed, false);
