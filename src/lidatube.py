@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 import threading
-import googlesearch
+from ytmusicapi import YTMusic
 import requests
 from flask import Flask, render_template
 from flask_socketio import SocketIO
@@ -15,8 +15,9 @@ class Data_Handler:
         self.lidarrAPIKey = lidarrAPIKey
         self.lidarrMaxTags = 250
         self.lidarrApiTimeout = 120
-        self.youtubeSuffix = "full album YouTube playlist"
+        self.youtubeSuffix = "full album"
         self.metubeSleepInterval = 450
+        self.ytmusic = YTMusic()
         self.reset()
 
     def reset(self):
@@ -61,24 +62,40 @@ class Data_Handler:
         try:
             while not self.stop_metube_event.is_set() and self.index < len(self.metube_items):
                 item = self.metube_items[self.index]["Item"]
-                search_results = googlesearch.search(item + " " + self.youtubeSuffix, stop=10)
-                first_result = next((x for x in search_results if "playlist" in x), None)
+                first_result = None
+                search_results = self.ytmusic.search(query=item + " " + self.youtubeSuffix, filter="albums", limit=10)
+                item_split = item.split(" - ")
+                search_artist, search_album_title = item_split[0], item_split[-1]
+                for res in search_results:
+                    link_type = res["type"]
+                    album_id = res["browseId"]
+                    album_title = res["title"]
+                    if (search_album_title in album_title or album_title in search_album_title) and link_type == "Album":
+                        first_result = f"https://music.youtube.com/browse/{album_id}"
+                        logger.info("Full Link-> " + search_artist + " " + album_title + ": " + first_result)
+                        break
+
                 if first_result:
                     self.metube_items[self.index]["Link Found"] = True
                     ret = self.add_to_metube(first_result, item)
                     if ret == "Success":
                         self.metube_items[self.index]["Added to Metube"] = True
+                        logger.info("Added to Metube: " + item)
                     else:
                         socketio.emit("metube_status", {"Status": "Error", "Data": ret + " Error Adding to metube"})
+                        logger.error("Error Adding to Metube: " + item)
                 else:
                     socketio.emit("metube_status", {"Status": "Error", "Data": item + " No Playlist Found"})
+                    logger.error("No Playlist found: " + item)
                     self.index += 1
                     continue
 
                 self.sleeping_flag = True
+                logger.info("Sleeping")
                 if self.stop_metube_event.wait(timeout=self.metubeSleepInterval):
                     break
                 self.sleeping_flag = False
+                logger.info("Sleeping Complete")
                 self.index += 1
 
             if not self.stop_metube_event.is_set():
