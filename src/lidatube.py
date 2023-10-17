@@ -15,9 +15,8 @@ class Data_Handler:
         self.lidarrAPIKey = lidarrAPIKey
         self.lidarrMaxTags = 250
         self.lidarrApiTimeout = 120
-        self.youtubeSuffix = "full album"
-        self.metubeSleepInterval = 450
-        self.ytmusic = YTMusic()
+        self.youtubeSuffix = "album"
+        self.metubeSleepInterval = 300
         self.reset()
 
     def reset(self):
@@ -63,13 +62,14 @@ class Data_Handler:
             while not self.stop_metube_event.is_set() and self.index < len(self.metube_items):
                 item = self.metube_items[self.index]["Item"]
                 first_result = None
+                self.ytmusic = YTMusic()
                 search_results = self.ytmusic.search(query=item + " " + self.youtubeSuffix, filter="albums", limit=10)
                 item_split = item.split(" - ")
-                search_artist, search_album_title = item_split[0], item_split[-1]
+                search_artist, search_album_title = item_split[0].lower(), item_split[-1].lower()
                 for res in search_results:
                     link_type = res["type"]
                     album_id = res["browseId"]
-                    album_title = res["title"]
+                    album_title = res["title"].lower()
                     if (search_album_title in album_title or album_title in search_album_title) and link_type == "Album":
                         first_result = f"https://music.youtube.com/browse/{album_id}"
                         logger.info("Full Link-> " + search_artist + " " + album_title + ": " + first_result)
