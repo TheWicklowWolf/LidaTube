@@ -222,7 +222,7 @@ class Data_Handler:
             self.percent_completion = 100 * (self.index / len(self.download_list)) if self.download_list else 0
             custom_data = {"Data": self.download_list, "Status": self.status, "Percent_Completion": self.percent_completion}
             socketio.emit("progress_status", custom_data)
-            socketio.sleep(1)
+            self.stop_monitoring_event.wait(1)
 
 
 app = Flask(__name__)
@@ -251,7 +251,8 @@ def home():
 
 @socketio.on("lidarr")
 def lidarr():
-    thread = threading.Thread(target=data_handler.get_missing_from_lidarr)
+    thread = threading.Thread(target=data_handler.get_missing_from_lidarr, name="Lidarr_Thread")
+    thread.daemon = True
     thread.start()
 
 
@@ -268,7 +269,8 @@ def add_to_download_list(data):
         if data_handler.running_flag == False:
             data_handler.index = 0
             data_handler.running_flag = True
-            thread = threading.Thread(target=data_handler.master_queue)
+            thread = threading.Thread(target=data_handler.master_queue, name="Queue_Thread")
+            thread.daemon = True
             thread.start()
 
         ret = {"Status": "Success"}
@@ -285,7 +287,8 @@ def add_to_download_list(data):
 def connection():
     if data_handler.monitor_active_flag == False:
         data_handler.stop_monitoring_event.clear()
-        thread = threading.Thread(target=data_handler.monitor)
+        thread = threading.Thread(target=data_handler.monitor, name="Monitor_Thread")
+        thread.daemon = True
         thread.start()
         data_handler.monitor_active_flag = True
 
