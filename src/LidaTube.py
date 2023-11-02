@@ -259,7 +259,7 @@ def lidarr():
 def add_to_download_list(data):
     try:
         data_handler.stop_downloading_event.clear()
-        if data_handler.running_flag == "Complete":
+        if data_handler.status == "Complete":
             data_handler.download_list = []
         for item in data["Data"]:
             full_item = {"Item": item, "Status": "Queued"}
