@@ -18,7 +18,7 @@ const lidarrMaxTags = document.getElementById("lidarrMaxTags");
 const lidarrApiTimeout = document.getElementById("lidarrApiTimeout");
 const youtubeSuffix = document.getElementById("youtubeSuffix");
 const sleepInterval = document.getElementById("sleepInterval");
-var lidarr_items = []
+var lidarr_items = [];
 var socket = io();
 
 selectAllCheckbox.addEventListener("change", function () {
@@ -32,7 +32,7 @@ selectAllCheckbox.addEventListener("change", function () {
 lidarrButton.addEventListener('click', function () {
     lidarrButton.disabled = true;
     lidarrSpinner.style.display = "inline-flex";
-    lidarrStatus.textContent = "Accessing Lidarr API"
+    lidarrStatus.textContent = "Accessing Lidarr API";
     lidarrItemList.innerHTML = '';
     socket.emit("lidarr");
 });
@@ -90,9 +90,9 @@ resetButton.addEventListener('click', function () {
 socket.on("lidarr_status", (response) => {
     if (response.Status == "Success") {
         lidarrButton.disabled = false;
-        lidarrStatus.textContent = "Lidarr List Retrieved"
+        lidarrStatus.textContent = "Lidarr List Retrieved";
         lidarrSpinner.style.display = "none";
-        lidarr_items = response.Data
+        lidarr_items = response.Data;
         lidarrItemList.innerHTML = '';
         selectAllContainer.style.display = "block";
         selectAllCheckbox.checked = false;
@@ -130,7 +130,7 @@ socket.on("lidarr_status", (response) => {
         errorDiv.textContent = response.Code + " : " + response.Data;
         errorDiv.style.wordBreak = "break-all";
         lidarrItemList.appendChild(errorDiv);
-        lidarrStatus.textContent = "Error Accessing Lidarr"
+        lidarrStatus.textContent = "Error Accessing Lidarr";
     }
     lidarrSpinner.style.display = "none";
     lidarrButton.disabled = false;
@@ -180,12 +180,12 @@ socket.on("progress_status", (response) => {
         var cellLinkFound = row.insertCell(1);
 
         cellItem.innerHTML = item.Item;
-        cellLinkFound.innerHTML = item['Status'];
+        cellLinkFound.innerHTML = item.Status;
     });
     var percent_completion = response.Percent_Completion;
     var actual_status = response.Status;
     updateProgressBar(percent_completion, actual_status);
-})
+});
 
 const themeSwitch = document.getElementById('themeSwitch');
 const savedTheme = localStorage.getItem('theme');
