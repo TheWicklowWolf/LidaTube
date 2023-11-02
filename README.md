@@ -23,7 +23,7 @@ services:
       - lidarr_address=http://192.168.1.2:8686
       - lidarr_api_key=1234567890
       - thread_limit=1
-	volumes:
+    volumes:
       - /data/media/lidatube:/lidatube/downloads
       - /etc/localtime:/etc/localtime:ro
     ports:
@@ -36,10 +36,15 @@ services:
 <p align="center">
 
 
-![image](https://github.com/TheWicklowWolf/LidaTube/assets/111055425/312c56f1-5bd5-429a-a7a6-06106bb01758)
+![image](https://github.com/TheWicklowWolf/LidaTube/assets/111055425/f58062ec-4793-4b99-bc6b-67f73f232fba)
+
+
+
+![image](https://github.com/TheWicklowWolf/LidaTube/assets/111055425/851388cc-364c-4b56-8d72-df2e75abb7fb)
 
 
 </p>
 
+---
 
 https://hub.docker.com/r/thewicklowwolf/lidatube
