@@ -4,4 +4,4 @@ gevent-websocket
 flask
 flask_socketio
 ytmusicapi
-requests
+yt_dlp

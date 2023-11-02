@@ -1,42 +1,25 @@
 var lidarrButton = document.getElementById('lidarr_button');
 var lidarrSpinner = document.getElementById('lidarr_spinner');
 var lidarrStatus = document.getElementById('lidarr_status');
-var metubeButton = document.getElementById('metube_button');
-var metubeSpinner = document.getElementById('metube_spinner');
-var metubeStatus = document.getElementById('metube_status');
-var stopButton = document.getElementById('metube_button_stop');
-var resetButton = document.getElementById('metube_button_reset');
-var monitorButton = document.getElementById('metube_button_monitor');
+var yt_dlpSpinner = document.getElementById('yt_dlp_spinner');
+var yt_dlpStatus = document.getElementById('yt_dlp_status');
+var addButton = document.getElementById('yt_dlp_button_add');
+var stopButton = document.getElementById('yt_dlp_button_stop');
+var resetButton = document.getElementById('yt_dlp_button_reset');
 var lidarrItemList = document.getElementById("lidarrItemList");
 var selectAllCheckbox = document.getElementById("select-all");
 var selectAllContainer = document.getElementById("select-all-container");
-var metubeDataTable = document.getElementById('metube-data-table').getElementsByTagName('tbody')[0];
+var progress_bar = document.getElementById('progress-status-bar');
+var yt_dlpDataTable = document.getElementById('yt_dlp-data-table').getElementsByTagName('tbody')[0];
 var configModal = document.getElementById('configModal');
 var saveMessage = document.getElementById("saveMessage");
 var saveChangesButton = document.getElementById("saveChangesBtn");
 const lidarrMaxTags = document.getElementById("lidarrMaxTags");
 const lidarrApiTimeout = document.getElementById("lidarrApiTimeout");
 const youtubeSuffix = document.getElementById("youtubeSuffix");
-const metubeSleepInterval = document.getElementById("metubeSleepInterval");
-const runningLed = document.getElementById('running-led');
-const sleepingLed = document.getElementById('sleeping-led');
-const completeLed = document.getElementById('complete-led');
+const sleepInterval = document.getElementById("sleepInterval");
 var lidarr_items = []
 var socket = io();
-
-function setLedStatus(ledElement, status) {
-    if (status) {
-        ledElement.classList.add('true');
-        ledElement.classList.remove('false');
-    } else {
-        ledElement.classList.add('false');
-        ledElement.classList.remove('true');
-    }
-}
-
-setLedStatus(runningLed, false);
-setLedStatus(sleepingLed, false);
-setLedStatus(completeLed, false);
 
 selectAllCheckbox.addEventListener("change", function () {
     var isChecked = this.checked;
@@ -49,28 +32,26 @@ selectAllCheckbox.addEventListener("change", function () {
 lidarrButton.addEventListener('click', function () {
     lidarrButton.disabled = true;
     lidarrSpinner.style.display = "inline-flex";
-    lidarrStatus.textContent = "Requesting Data from Lidarr API"
+    lidarrStatus.textContent = "Accessing Lidarr API"
+    lidarrItemList.innerHTML = '';
     socket.emit("lidarr");
 });
 
-metubeButton.addEventListener('click', function () {
-    metubeButton.disabled = true;
-    metubeSpinner.style.display = "inline-flex";
+addButton.addEventListener('click', function () {
+    addButton.disabled = true;
+    yt_dlpSpinner.style.display = "inline-flex";
     var checkedItems = [];
     for (var i = 0; i < lidarr_items.length; i++) {
         var checkbox = document.getElementById("lidarr_" + i);
-
         if (checkbox.checked) {
             checkedItems.push(checkbox.value);
         }
     }
-    socket.emit("metube", { "Data": checkedItems });
+    socket.emit("add_to_download_list", { "Data": checkedItems });
 });
 
 stopButton.addEventListener('click', function () {
     socket.emit("stopper");
-    setLedStatus(runningLed, false);
-    setLedStatus(sleepingLed, false);
 });
 
 configModal.addEventListener('show.bs.modal', function (event) {
@@ -79,7 +60,7 @@ configModal.addEventListener('show.bs.modal', function (event) {
     function handleSettingsLoaded(settings) {
         lidarrMaxTags.value = settings.lidarrMaxTags;
         lidarrApiTimeout.value = settings.lidarrApiTimeout;
-        metubeSleepInterval.value = settings.metubeSleepInterval;
+        sleepInterval.value = settings.sleepInterval;
         youtubeSuffix.value = settings.youtubeSuffix;
         socket.off("settingsLoaded", handleSettingsLoaded);
     }
@@ -90,7 +71,7 @@ saveChangesButton.addEventListener("click", () => {
     socket.emit("updateSettings", {
         "lidarrMaxTags": lidarrMaxTags.value,
         "lidarrApiTimeout": lidarrApiTimeout.value,
-        "metubeSleepInterval": metubeSleepInterval.value,
+        "sleepInterval": sleepInterval.value,
         "youtubeSuffix": youtubeSuffix.value
     });
     saveMessage.style.display = "block";
@@ -101,12 +82,9 @@ saveChangesButton.addEventListener("click", () => {
 
 resetButton.addEventListener('click', function () {
     socket.emit("reset");
-    metubeDataTable.innerHTML = '';
-    metubeSpinner.style.display = "none";
-    metubeStatus.textContent = "";
-    setLedStatus(runningLed, false);
-    setLedStatus(sleepingLed, false);
-    setLedStatus(completeLed, false);
+    yt_dlpDataTable.innerHTML = '';
+    yt_dlpSpinner.style.display = "none";
+    yt_dlpStatus.textContent = "";
 });
 
 socket.on("lidarr_status", (response) => {
@@ -136,6 +114,10 @@ socket.on("lidarr_status", (response) => {
             label.htmlFor = "lidarr_" + i;
             label.textContent = item;
 
+            input.addEventListener("change", function () {
+                selectAllCheckbox.checked = false;
+            });
+
             div.appendChild(input);
             div.appendChild(label);
 
@@ -143,36 +125,86 @@ socket.on("lidarr_status", (response) => {
         }
     }
     else {
-        lidarrStatus.textContent = response.Code + " : " + response.Data;
+        lidarrItemList.innerHTML = '';
+        var errorDiv = document.createElement("div");
+        errorDiv.textContent = response.Code + " : " + response.Data;
+        errorDiv.style.wordBreak = "break-all";
+        lidarrItemList.appendChild(errorDiv);
+        lidarrStatus.textContent = "Error Accessing Lidarr"
     }
     lidarrSpinner.style.display = "none";
     lidarrButton.disabled = false;
 });
 
-socket.on("metube_status", (response) => {
+socket.on("yt_dlp_status", (response) => {
     if (response.Status == "Success") {
-        metubeSpinner.style.display = "none";
-        metubeStatus.textContent = "";
+        yt_dlpSpinner.style.display = "none";
+        yt_dlpStatus.textContent = "";
     } else {
-        metubeStatus.textContent = response.Data;
+        yt_dlpStatus.textContent = response.Data;
     }
-    metubeButton.disabled = false;
+    addButton.disabled = false;
 });
 
+function updateProgressBar(percentage, status) {
+    progress_bar.style.width = percentage + "%";
+    progress_bar.ariaValueNow = percentage + "%";
+    progress_bar.classList.remove("progress-bar-striped");
+    progress_bar.classList.remove("progress-bar-animated");
+
+    if (status === "Running") {
+        progress_bar.classList.remove("bg-primary", "bg-danger", "bg-dark");
+        progress_bar.classList.add("bg-success");
+        progress_bar.classList.add("progress-bar-animated");
+
+    } else if (status === "Stopped") {
+        progress_bar.classList.remove("bg-primary", "bg-success", "bg-dark");
+        progress_bar.classList.add("bg-danger");
+
+    } else if (status === "Idle") {
+        progress_bar.classList.remove("bg-success", "bg-danger", "bg-dark");
+        progress_bar.classList.add("bg-primary");
+
+    } else if (status === "Complete") {
+        progress_bar.classList.remove("bg-primary", "bg-success", "bg-danger");
+        progress_bar.classList.add("bg-dark");
+    }
+    progress_bar.classList.add("progress-bar-striped");
+}
+
 socket.on("progress_status", (response) => {
-    metubeDataTable.innerHTML = '';
+    yt_dlpDataTable.innerHTML = '';
     response.Data.forEach(function (item) {
-        var row = metubeDataTable.insertRow();
+        var row = yt_dlpDataTable.insertRow();
         var cellItem = row.insertCell(0);
         var cellLinkFound = row.insertCell(1);
-        var cellAddedToMetube = row.insertCell(2);
 
         cellItem.innerHTML = item.Item;
-        cellLinkFound.innerHTML = item['Link Found'];
-        cellAddedToMetube.innerHTML = item['Added to Metube'];
-
-        setLedStatus(runningLed, response.Running);
-        setLedStatus(sleepingLed, response.Sleeping);
-        setLedStatus(completeLed, response.Complete);
+        cellLinkFound.innerHTML = item['Status'];
     });
+    var percent_completion = response.Percent_Completion;
+    var actual_status = response.Status;
+    updateProgressBar(percent_completion, actual_status);
 })
+
+const themeSwitch = document.getElementById('themeSwitch');
+const savedTheme = localStorage.getItem('theme');
+const savedSwitchPosition = localStorage.getItem('switchPosition');
+
+if (savedSwitchPosition) {
+    themeSwitch.checked = savedSwitchPosition === 'true';
+}
+
+if (savedTheme) {
+    document.documentElement.setAttribute('data-bs-theme', savedTheme);
+}
+
+themeSwitch.addEventListener('click', () => {
+    if (document.documentElement.getAttribute('data-bs-theme') === 'dark') {
+        document.documentElement.setAttribute('data-bs-theme', 'light');
+    } else {
+        document.documentElement.setAttribute('data-bs-theme', 'dark');
+    }
+    localStorage.setItem('theme', document.documentElement.getAttribute('data-bs-theme'));
+    localStorage.setItem('switchPosition', themeSwitch.checked);
+});

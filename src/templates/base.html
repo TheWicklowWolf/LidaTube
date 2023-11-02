@@ -12,17 +12,24 @@
   <!-- Bootstrap JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.min.js"></script>
   <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+    integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
   <!-- Socket IO -->
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-  <title>lidatube</title>
+  <title>LidaTube</title>
 </head>
 
-<body>
+<body class="bg-body-secondary bg-gradient">
   <div class="topBar">
-    <h1 class="title">lidatube</h1>
-    <div class="settings-icon" id="settings-icon" data-bs-toggle="modal" data-bs-target="#configModal">
-      <i class="fa fa-gear" style="font-size:40px;color:white"></i>
+    <div class="container-fluid bg-dark">
+      <div class="top-bar d-flex justify-content-between align-items-center">
+        <h1 class="title text-center text-light flex-grow-1">LidaTube</h1>
+        <button class="btn btn-link text-light" id="settings-button" data-bs-toggle="modal"
+          data-bs-target="#configModal">
+          <i class="fa fa-gear fa-2x"></i>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -36,7 +43,7 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 
         </div>
-        <div class="modal-body custom-spacing">
+        <div class="modal-body">
           <div id="saveMessage" style="display: none;" class="alert alert-success mt-3">
             Settings saved successfully.
           </div>
@@ -44,23 +51,27 @@
             <label for="lidarrMaxTags">Lidarr Max Albums to retrieve:</label>
             <input type="number" class="form-control" id="lidarrMaxTags" placeholder="Enter Lidarr Max Tags">
           </div>
-          <div class="form-group-modal">
+          <div class="form-group-modal my-2">
             <label for="lidarrApiTimeout">Lidarr API Timeout (Seconds):</label>
             <input type="number" class="form-control" id="lidarrApiTimeout" placeholder="Enter Lidarr Timeout">
           </div>
-          <div class="form-group-modal">
+          <div class="form-group-modal my-2">
             <label for="youtubeSuffix">YouTube search suffix term:</label>
             <input type="text" class="form-control" id="youtubeSuffix" placeholder="Enter YouTube Suffix">
           </div>
-          <div class="form-group-modal">
-            <label for="metubeSleepInterval">Metube Sleep Interval (Seconds):</label>
-            <input type="number" class="form-control" id="metubeSleepInterval"
-              placeholder="Enter Metube Sleep Interval">
+          <div class="form-group-modal my-2">
+            <label for="sleepInterval">Sleep Interval (Seconds):</label>
+            <input type="number" class="form-control" id="sleepInterval" placeholder="Enter Sleep Interval">
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
           <button type="button" id="saveChangesBtn" class="btn btn-primary">Save changes</button>
+          <i class="fa fa-sun"></i>
+          <div class="form-check form-switch">
+            <input class="form-check-input rounded" type="checkbox" id="themeSwitch">
+          </div>
+          <i class="fa fa-moon"></i>
         </div>
       </div>
     </div>
@@ -68,16 +79,17 @@
 
   <div class="left-and-right">
     <!-- Left Panel -->
-    <div class="panel left">
-      <div class="non-scroll-content-left">
-        <div class="logo-and-title">
+    <div class="panel left rounded">
+      <div class="non-scroll-content-left p-1">
+        <div class="logo-and-title m-1">
           <img src="{{url_for('static', filename='lidarr.svg')}}" alt="Logo" class="logo">
           <h2 class="panel-title">Lidarr</h2>
         </div>
-        <div class="content">
+        <div class="content m-1">
           <button class="btn btn-primary" id="lidarr_button">Get Missing List</button>
-          <div class="status-and-spinner">
-            <div id="lidarr_spinner" class="spinner-border text-primary" style=" display: none;" role="status">
+          <div class="status-and-spinner d-flex align-items-center">
+            <div id="lidarr_spinner" class="spinner-border spinner-border-sm text-primary" style=" display: none;"
+              role="status">
               <span class="sr-only">Loading...</span>
             </div>
             <div class="status-only">
@@ -85,71 +97,63 @@
             </div>
           </div>
         </div>
-        <div id="select-all-container">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="select-all">
-            <label class="form-check-label" for="select-all">Select All</label>
+        <div class="common-height">
+          <div id="select-all-container" style=" display: none;">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="select-all">
+              <label class="form-check-label" for="select-all">Select All</label>
+            </div>
           </div>
         </div>
       </div>
 
-      <div id="lidarrItemList" class="scrollable-content">
+      <div id="lidarrItemList" class="scrollable-content p-1 bg-light-subtle">
       </div>
     </div>
 
     <!-- Right Panel -->
-    <div class="panel right">
-      <div class="non-scroll-content-right">
+    <div class="panel right rounded">
+      <div class="non-scroll-content-right p-1">
         <div class="text-logo-and-title">
-          <div class="logo-and-title">
-            <img src="{{url_for('static', filename='metube.svg')}}" alt="Logo" class="logo">
-            <h2 class="panel-title">Metube</h2>
+          <div class="logo-and-title m-1">
+            <img src="{{url_for('static', filename='yt_dlp.png')}}" alt="Logo" class="logo">
+            <h2 class="panel-title">Downloader</h2>
           </div>
 
-          <div class="content">
+          <div class="content m-1">
             <div class="form-group">
               <div class="input-group">
-                <button class="btn btn-primary" id="metube_button">Add</button>
-                <button class="btn btn-warning" id="metube_button_stop">Stop</button>
-                <button class="btn btn-danger" id="metube_button_reset">Reset</button>
-                <div class="status-and-spinner">
-                  <div id="metube_spinner" class="spinner-border text-primary" style=" display: none;" role="status">
+                <button class="btn btn-primary" id="yt_dlp_button_add">Add</button>
+                <button class="btn btn-warning" id="yt_dlp_button_stop">Stop</button>
+                <button class="btn btn-danger" id="yt_dlp_button_reset">Reset</button>
+                <div class="status-and-spinner d-flex align-items-center ms-1">
+                  <div id="yt_dlp_spinner" class="spinner-border spinner-border-sm text-primary" style=" display: none;"
+                    role="status">
                     <span class="sr-only">Loading...</span>
                   </div>
                   <div class="status-only">
-                    <span id="metube_status"></span>
+                    <span id="yt_dlp_status"></span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-
-        </div>
-        <div class="leds">
-          <div class="status-container">
-            <div class="status-item">
-              <div class="led" id="running-led"></div>
-              <label>Running</label>
-            </div>
-            <div class="status-item">
-              <div class="led" id="sleeping-led"></div>
-              <label>Sleeping</label>
-            </div>
-            <div class="status-item">
-              <div class="led" id="complete-led"></div>
-              <label>Complete</label>
+          <div class="common-height">
+            <div id="progress-status-bar" class="progress m-2">
+              <div class="progress-bar-striped bg-success" role="progressbar" aria-valuenow="100" aria-valuemin="0"
+                aria-valuemax="100"></div>
             </div>
           </div>
         </div>
+
       </div>
 
-      <div id="metubeItemList" class="scrollable-content">
-        <table id="metube-data-table">
+      <div id="yt_dlpItemList" class="scrollable-content p-1 bg-light-subtle">
+        <table id="yt_dlp-data-table">
           <thead>
             <tr>
               <th>Search Item</th>
-              <th>Link Found</th>
-              <th>Added to Metube</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>

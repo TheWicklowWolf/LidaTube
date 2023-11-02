@@ -8,7 +8,7 @@
 
 </p>
 
-Web GUI for adding missing Lidarr albums to metube.
+Web GUI for finding and downloading missing Lidarr albums.
 
 
 ## Run using docker-compose
@@ -22,7 +22,10 @@ services:
     environment:
       - lidarr_address=http://192.168.1.2:8686
       - lidarr_api_key=1234567890
-      - metube_address=http://192.168.1.2:8080
+      - thread_limit=1
+	volumes:
+      - /data/media/lidatube:/lidatube/downloads
+      - /etc/localtime:/etc/localtime:ro
     ports:
       - 5000:5000
     restart: unless-stopped
