@@ -14,8 +14,10 @@ var yt_dlpDataTable = document.getElementById('yt_dlp-data-table').getElementsBy
 var configModal = document.getElementById('configModal');
 var saveMessage = document.getElementById("saveMessage");
 var saveChangesButton = document.getElementById("saveChangesBtn");
-const lidarrMaxTags = document.getElementById("lidarrMaxTags");
+const lidarrAddress = document.getElementById("lidarrAddress");
+const lidarrApiKey = document.getElementById("lidarrApiKey");
 const lidarrApiTimeout = document.getElementById("lidarrApiTimeout");
+const lidarrMaxTags = document.getElementById("lidarrMaxTags");
 const youtubeSuffix = document.getElementById("youtubeSuffix");
 const sleepInterval = document.getElementById("sleepInterval");
 var lidarr_items = [];
@@ -58,8 +60,10 @@ configModal.addEventListener('show.bs.modal', function (event) {
     socket.emit("loadSettings");
 
     function handleSettingsLoaded(settings) {
-        lidarrMaxTags.value = settings.lidarrMaxTags;
+        lidarrAddress.value = settings.lidarrAddress;
+        lidarrApiKey.value = settings.lidarrApiKey;
         lidarrApiTimeout.value = settings.lidarrApiTimeout;
+        lidarrMaxTags.value = settings.lidarrMaxTags;
         sleepInterval.value = settings.sleepInterval;
         youtubeSuffix.value = settings.youtubeSuffix;
         socket.off("settingsLoaded", handleSettingsLoaded);
@@ -69,8 +73,10 @@ configModal.addEventListener('show.bs.modal', function (event) {
 
 saveChangesButton.addEventListener("click", () => {
     socket.emit("updateSettings", {
-        "lidarrMaxTags": lidarrMaxTags.value,
+        "lidarrAddress": lidarrAddress.value,
+        "lidarrApiKey": lidarrApiKey.value,
         "lidarrApiTimeout": lidarrApiTimeout.value,
+        "lidarrMaxTags": lidarrMaxTags.value,
         "sleepInterval": sleepInterval.value,
         "youtubeSuffix": youtubeSuffix.value
     });

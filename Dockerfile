@@ -1,14 +1,11 @@
-FROM python:3.11-slim
+FROM python:3.11-alpine
 # Create User
 ARG UID=1000
 ARG GID=1000
-RUN groupadd -g $GID general_user && \
-    useradd -m -u $UID -g $GID -s /bin/bash general_user
-RUN umask 0000
+RUN addgroup -g $GID general_user && \
+    adduser -D -u $UID -G general_user -s /bin/sh general_user
 # Install ffmpeg
-RUN apt-get update && apt-get install -y \
-    ffmpeg && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk update && apk add --no-cache ffmpeg
 # Create directories and set permissions
 COPY . /lidatube
 WORKDIR /lidatube

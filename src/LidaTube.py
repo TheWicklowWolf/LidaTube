@@ -12,10 +12,10 @@ import re
 
 
 class Data_Handler:
-    def __init__(self, lidarrAddress, lidarrAPIKey, thread_limit):
+    def __init__(self, lidarr_address, lidarr_api_key, thread_limit):
         self.thread_limit = thread_limit
-        self.lidarrAddress = lidarrAddress
-        self.lidarrAPIKey = lidarrAPIKey
+        self.lidarrAddress = lidarr_address
+        self.lidarrApiKey = lidarr_api_key
         self.lidarrMaxTags = 250
         self.lidarrApiTimeout = 120
         self.youtubeSuffix = "album"
@@ -41,7 +41,7 @@ class Data_Handler:
             self.stop_lidarr_event.clear()
             self.lidarr_items = []
             endpoint = f"{self.lidarrAddress}/api/v1/wanted/missing?includeArtist=true"
-            params = {"apikey": self.lidarrAPIKey, "pageSize": self.lidarrMaxTags, "sortKey": "artists.sortname", "sortDir": "asc"}
+            params = {"apikey": self.lidarrApiKey, "pageSize": self.lidarrMaxTags, "sortKey": "artists.sortname", "sortDir": "asc"}
             response = requests.get(endpoint, params=params, timeout=self.lidarrApiTimeout)
             if response.status_code == 200:
                 wanted_missing_albums = response.json()
@@ -232,16 +232,10 @@ socketio = SocketIO(app)
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(message)s", datefmt="%d/%m/%Y %H:%M:%S", handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger()
 
-try:
-    lidarrAddress = os.environ["lidarr_address"]
-    lidarrAPIKey = os.environ["lidarr_api_key"]
-    thread_limit = int(os.environ["thread_limit"])
-except:
-    lidarrAddress = "http://192.168.1.2:8686"
-    lidarrAPIKey = "0123456789"
-    thread_limit = 1
-
-data_handler = Data_Handler(lidarrAddress, lidarrAPIKey, thread_limit)
+lidarr_address = os.environ.get("lidarr_address", "http://192.168.1.2:8686")
+lidarr_api_key = os.environ.get("lidarr_api_key", "0123456789")
+thread_limit = int(os.environ.get("thread_limit", 1))
+data_handler = Data_Handler(lidarr_address, lidarr_api_key, thread_limit)
 
 
 @app.route("/")
@@ -295,14 +289,23 @@ def connection():
 
 @socketio.on("loadSettings")
 def loadSettings():
-    data = {"lidarrMaxTags": data_handler.lidarrMaxTags, "lidarrApiTimeout": data_handler.lidarrApiTimeout, "youtubeSuffix": data_handler.youtubeSuffix, "sleepInterval": data_handler.sleepInterval}
+    data = {
+        "lidarrAddress": data_handler.lidarrAddress,
+        "lidarrApiKey": data_handler.lidarrApiKey,
+        "lidarrApiTimeout": data_handler.lidarrApiTimeout,
+        "lidarrMaxTags": data_handler.lidarrMaxTags,
+        "youtubeSuffix": data_handler.youtubeSuffix,
+        "sleepInterval": data_handler.sleepInterval,
+    }
     socketio.emit("settingsLoaded", data)
 
 
 @socketio.on("updateSettings")
 def updateSettings(data):
-    data_handler.lidarrMaxTags = int(data["lidarrMaxTags"])
+    data_handler.lidarrAddress = data["lidarrAddress"]
+    data_handler.lidarrApiKey = data["lidarrApiKey"]
     data_handler.lidarrApiTimeout = int(data["lidarrApiTimeout"])
+    data_handler.lidarrMaxTags = int(data["lidarrMaxTags"])
     data_handler.youtubeSuffix = data["youtubeSuffix"]
     data_handler.sleepInterval = int(data["sleepInterval"])
 
