@@ -133,17 +133,26 @@ th, td {
     h1{
         margin-bottom: 0rem!important;
     }
+    .logo{
+        height: 40px;
+        width: 40px;
+    }
     .container {
         width: 98%;
     }
     .panel{
         width: 92.5vw;
+        margin: 10px;
+    }
+    .panel-title {
+        padding: 5px;
+        margin: 0;
     }
     .panel.left {
-        height: 40.5vh;  
+        height: 40.75vh;  
     }
     .panel.right {
-        height: 40.5vh;
+        height: 40.75vh;
     }    
     .left-and-right{
         flex-direction: column;
