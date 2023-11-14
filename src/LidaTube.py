@@ -67,7 +67,7 @@ class Data_Handler:
             self.ytmusic = YTMusic()
             query_text = req_album["Item"]
             artist, album = query_text.split(" - ", maxsplit=1)
-            folder = self.string_cleaner(artist) + " - " + self.string_cleaner(album)
+            folder = os.path.join(self.string_cleaner(artist), self.string_cleaner(album))
             cleaned_album = self.string_cleaner(album).lower()
 
             found_browseId = None
