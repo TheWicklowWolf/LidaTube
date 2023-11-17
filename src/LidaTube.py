@@ -94,10 +94,10 @@ class Data_Handler:
                 album_details = self.ytmusic.get_album(found_browseId)
                 songs_info = []
 
-                for track in album_details["tracks"]:
+                for i, track in enumerate(album_details["tracks"], start=1):
                     song_title = track["title"]
                     song_link = f"https://www.youtube.com/watch?v={track['videoId']}"
-                    songs_info.append({"title": song_title, "link": song_link})
+                    songs_info.append({"title": song_title, "link": song_link, "track_no": i})
             else:
                 raise Exception("Nothing Found")
 
@@ -114,7 +114,8 @@ class Data_Handler:
                 else:
                     title = song["title"]
                     link = song["link"]
-                    file_name = os.path.join(folder, self.string_cleaner(title) + " - " + self.string_cleaner(artist))
+                    track_no = str(song["track_no"]).zfill(2)
+                    file_name = os.path.join(folder, self.string_cleaner(artist) + " - " + self.string_cleaner(album) + " - " + track_no + " - " + self.string_cleaner(title))
                     full_file_path = os.path.join(self.download_folder, file_name)
 
                     if not os.path.exists(full_file_path + ".mp3"):
