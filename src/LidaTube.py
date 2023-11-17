@@ -76,6 +76,7 @@ class Data_Handler:
             for item in search_results:
                 cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
                 if cleaned_album in cleaned_youtube_title:
+                    year = f" ({item['year']})"
                     found_browseId = item["browseId"]
                     break
             else:
@@ -84,9 +85,11 @@ class Data_Handler:
                     for item in search_results:
                         cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
                         if all(word in cleaned_album for word in cleaned_youtube_title.split()):
+                            year = f" ({item['year']})"
                             found_browseId = item["browseId"]
                             break
                     else:
+                        year = f" ({search_results[0]['year']})"
                         found_browseId = search_results[0]["browseId"]
 
             if found_browseId:
@@ -114,8 +117,9 @@ class Data_Handler:
                 else:
                     title = song["title"]
                     link = song["link"]
+                    folder_with_year = folder + year
                     track_no = str(song["track_no"]).zfill(2)
-                    file_name = os.path.join(folder, self.string_cleaner(artist) + " - " + self.string_cleaner(album) + " - " + track_no + " - " + self.string_cleaner(title))
+                    file_name = os.path.join(folder_with_year, self.string_cleaner(artist) + " - " + self.string_cleaner(album) + " - " + track_no + " - " + self.string_cleaner(title))
                     full_file_path = os.path.join(self.download_folder, file_name)
 
                     if not os.path.exists(full_file_path + ".mp3"):
