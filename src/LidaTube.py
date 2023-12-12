@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 import threading
 import requests
 from ytmusicapi import YTMusic
@@ -9,6 +8,7 @@ from flask_socketio import SocketIO
 import yt_dlp
 import concurrent.futures
 import re
+from mutagen.id3 import ID3, TIT2, TPE1, TALB, TPE2, TYER, TDRC, TRCK
 
 
 class Data_Handler:
@@ -149,6 +149,7 @@ class Data_Handler:
                             yt_downloader = yt_dlp.YoutubeDL(ydl_opts)
                             yt_downloader.download([link])
                             logger.warning("yt_dl Complete : " + link)
+                            self.add_metadata(song, album_details, full_file_path + ".mp3")
 
                         except Exception as e:
                             logger.error(f"Error downloading song: {link}. Error message: {e}")
@@ -172,6 +173,23 @@ class Data_Handler:
 
         elif d["status"] == "downloading":
             logger.warning(f'Downloaded {d["_percent_str"]} of {d["_total_bytes_str"]} at {d["_speed_str"]}')
+
+    def add_metadata(self, song, album_details, full_file_path):
+        try:
+            metadata = ID3(full_file_path)
+            metadata.add(TIT2(encoding=3, text=song["title"]))
+            metadata.add(TRCK(encoding=3, text=str(song["track_no"])))
+            metadata.add(TPE1(encoding=3, text=album_details["artists"][0]["name"]))
+            metadata.add(TALB(encoding=3, text=album_details["title"]))
+            metadata.add(TPE2(encoding=3, text=album_details["artists"][0]["name"]))
+            metadata.add(TYER(encoding=3, text=album_details["year"]))
+            metadata.add(TDRC(encoding=3, text=album_details["year"]))
+            metadata.save()
+
+            logger.warning(f"Metadata added for {full_file_path}")
+
+        except Exception as e:
+            logger.error(f"Error adding metadata for {full_file_path}: {e}")
 
     def master_queue(self):
         try:
@@ -234,7 +252,7 @@ app = Flask(__name__)
 app.secret_key = "secret_key"
 socketio = SocketIO(app)
 
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(message)s", datefmt="%d/%m/%Y %H:%M:%S", handlers=[logging.StreamHandler(sys.stdout)])
+logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger()
 
 lidarr_address = os.environ.get("lidarr_address", "http://192.168.1.2:8686")
