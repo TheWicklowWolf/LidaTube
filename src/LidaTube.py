@@ -68,29 +68,10 @@ class Data_Handler:
             query_text = req_album["Item"]
             artist, album = query_text.split(" - ", maxsplit=1)
             folder = os.path.join(self.string_cleaner(artist), self.string_cleaner(album))
-            cleaned_album = self.string_cleaner(album).lower()
+            self.cleaned_album = self.string_cleaner(album).lower()
 
-            found_browseId = None
-            search_results = self.ytmusic.search(query=query_text, filter="albums", limit=5)
-
-            for item in search_results:
-                cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
-                if cleaned_album in cleaned_youtube_title:
-                    year = f" ({item['year']})"
-                    found_browseId = item["browseId"]
-                    break
-            else:
-                # Try again but reverse the check otherwise select top result
-                if len(search_results):
-                    for item in search_results:
-                        cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
-                        if all(word in cleaned_album for word in cleaned_youtube_title.split()):
-                            year = f" ({item['year']})"
-                            found_browseId = item["browseId"]
-                            break
-                    else:
-                        year = f" ({search_results[0]['year']})"
-                        found_browseId = search_results[0]["browseId"]
+            self.search_results = self.ytmusic.search(query=query_text, filter="albums", limit=5)
+            found_browseId, year = self.matcher()
 
             if found_browseId:
                 req_album["Status"] = "Album Found"
@@ -190,6 +171,36 @@ class Data_Handler:
 
         except Exception as e:
             logger.error(f"Error adding metadata for {full_file_path}: {e}")
+
+    def matcher(self):
+        year = None
+        found_browseId = None
+        if len(self.search_results):
+            # Check for an exact match
+            for item in self.search_results:
+                cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
+                if self.cleaned_album == cleaned_youtube_title:
+                    year = f" ({item['year']})"
+                    found_browseId = item["browseId"]
+                    break
+            else:
+                # Try again but check for partial match, or reverse the check
+                for item in self.search_results:
+                    cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
+                    if self.cleaned_album in cleaned_youtube_title:
+                        year = f" ({item['year']})"
+                        found_browseId = item["browseId"]
+                        break
+                    if all(word in self.cleaned_album for word in cleaned_youtube_title.split()):
+                        year = f" ({item['year']})"
+                        found_browseId = item["browseId"]
+                        break
+                else:
+                    # Otherwise select top result
+                    year = f" ({self.search_results[0]['year']})"
+                    found_browseId = self.search_results[0]["browseId"]
+
+        return found_browseId, year
 
     def master_queue(self):
         try:
