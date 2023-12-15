@@ -67,11 +67,13 @@ class Data_Handler:
             self.ytmusic = YTMusic()
             query_text = req_album["Item"]
             artist, album = query_text.split(" - ", maxsplit=1)
-            folder = os.path.join(self.string_cleaner(artist), self.string_cleaner(album))
-            self.cleaned_album = self.string_cleaner(album).lower()
 
-            self.search_results = self.ytmusic.search(query=query_text, filter="albums", limit=5)
-            found_browseId, year = self.matcher()
+            self.cleaned_album = self.string_cleaner(album).lower()
+            self.search_results = self.ytmusic.search(query=query_text, filter="albums", limit=10)
+
+            found_browseId, year, album_found_name = self.matcher()
+            folder = os.path.join(self.string_cleaner(artist), self.string_cleaner(album_found_name))
+            folder_with_year = folder + year
 
             if found_browseId:
                 req_album["Status"] = "Album Found"
@@ -92,15 +94,17 @@ class Data_Handler:
         else:
             song_count = 0
             total = len(songs_info)
+            artist_song_str = self.string_cleaner(artist)
+
             for song in songs_info:
                 if self.stop_downloading_event.is_set():
                     break
                 else:
                     title = song["title"]
                     link = song["link"]
-                    folder_with_year = folder + year
+                    title_str = self.string_cleaner(title)
                     track_no = str(song["track_no"]).zfill(2)
-                    file_name = os.path.join(folder_with_year, self.string_cleaner(artist) + " - " + self.string_cleaner(album) + " - " + track_no + " - " + self.string_cleaner(title))
+                    file_name = os.path.join(folder_with_year, artist_song_str + " - " + album_found_name + " - " + track_no + " - " + title_str)
                     full_file_path = os.path.join(self.download_folder, file_name)
 
                     if not os.path.exists(full_file_path + ".mp3"):
@@ -173,7 +177,8 @@ class Data_Handler:
             logger.error(f"Error adding metadata for {full_file_path}: {e}")
 
     def matcher(self):
-        year = None
+        year = ""
+        folder_name = ""
         found_browseId = None
         if len(self.search_results):
             # Check for an exact match
@@ -182,6 +187,7 @@ class Data_Handler:
                 if self.cleaned_album == cleaned_youtube_title:
                     year = f" ({item['year']})"
                     found_browseId = item["browseId"]
+                    folder_name = self.string_cleaner(item["title"])
                     break
             else:
                 # Try again but check for partial match, or reverse the check
@@ -190,17 +196,20 @@ class Data_Handler:
                     if self.cleaned_album in cleaned_youtube_title:
                         year = f" ({item['year']})"
                         found_browseId = item["browseId"]
+                        folder_name = self.string_cleaner(item["title"])
                         break
                     if all(word in self.cleaned_album for word in cleaned_youtube_title.split()):
                         year = f" ({item['year']})"
                         found_browseId = item["browseId"]
+                        folder_name = self.string_cleaner(item["title"])
                         break
                 else:
                     # Otherwise select top result
                     year = f" ({self.search_results[0]['year']})"
                     found_browseId = self.search_results[0]["browseId"]
+                    folder_name = self.string_cleaner(self.search_results[0]["title"])
 
-        return found_browseId, year
+        return found_browseId, year, folder_name
 
     def master_queue(self):
         try:
