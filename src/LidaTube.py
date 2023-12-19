@@ -189,6 +189,7 @@ class Data_Handler:
                     year = f" ({item['year']})"
                     found_browseId = item["browseId"]
                     folder_name = self.string_cleaner(item["title"])
+                    logger.warning("Exact Match Found : " + item["title"] + " for " + self.cleaned_album)
                     break
             else:
                 # Try again but check for partial match, or reverse the check
@@ -198,11 +199,13 @@ class Data_Handler:
                         year = f" ({item['year']})"
                         found_browseId = item["browseId"]
                         folder_name = self.string_cleaner(item["title"])
+                        logger.warning("Near Exact Match Found : " + item["title"] + " for " + self.cleaned_album)
                         break
                     if all(word in self.cleaned_album for word in cleaned_youtube_title.split()):
                         year = f" ({item['year']})"
                         found_browseId = item["browseId"]
                         folder_name = self.string_cleaner(item["title"])
+                        logger.warning("Partial Match Found : " + item["title"] + " for " + self.cleaned_album)
                         break
                 else:
                     # Otherwise select top result if fallback_to_top_result is true
@@ -210,7 +213,11 @@ class Data_Handler:
                         year = f" ({self.search_results[0]['year']})"
                         found_browseId = self.search_results[0]["browseId"]
                         folder_name = self.string_cleaner(self.search_results[0]["title"])
-
+                        logger.warning("Using top result as no match found : " + self.search_results[0]["title"] + " for " + self.cleaned_album)
+                    else:
+                        logger.error("No match found and fallback is turned off : " + self.cleaned_album)
+        else:
+            logger.error("Search Result failed and did not find anything for : " + self.cleaned_album)
         return found_browseId, year, folder_name
 
     def master_queue(self):
