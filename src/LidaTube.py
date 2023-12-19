@@ -217,7 +217,7 @@ class Data_Handler:
                         folder_name = self.string_cleaner(search_results[0]["title"])
                         logger.warning(f"Using top result as no match found but fallback is enabled: {artist} - {album} -> {search_results[0]['title']} - {search_results[0]['artists'][0]['name']}")
                     else:
-                        logger.error(f"No match found and fallback is turned off : {artist} - {album}")
+                        logger.error(f"No match found and fallback is turned off : {artist} - {album}. Top result was {search_results[0]['title']} - {search_results[0]['artists'][0]['name']}")
         else:
             logger.error(f"Search for {artist} - {album} did not find anything!")
         return found_browseId, year, folder_name
