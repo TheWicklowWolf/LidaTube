@@ -18,7 +18,7 @@ class Data_Handler:
         self.lidarrApiKey = lidarr_api_key
         self.lidarrMaxTags = 250
         self.lidarrApiTimeout = 120
-        self.youtubeSuffix = "album"
+        self.youtubeSuffix = ""
         self.sleepInterval = 0
         self.download_folder = "downloads"
         self.fallback_to_top_result = fallback_to_top_result
@@ -69,10 +69,11 @@ class Data_Handler:
             query_text = req_album["Item"]
             artist, album = query_text.split(" - ", maxsplit=1)
 
-            self.cleaned_album = self.string_cleaner(album).lower()
-            self.search_results = self.ytmusic.search(query=query_text, filter="albums", limit=10)
+            cleaned_album = self.string_cleaner(album).lower()
+            search_results = self.ytmusic.search(query=query_text, filter="albums", limit=10)
 
-            found_browseId, year, album_found_name = self.matcher()
+            found_browseId, year, album_found_name = self.matcher(artist, album, cleaned_album, search_results)
+
             folder = os.path.join(self.string_cleaner(artist), self.string_cleaner(album_found_name))
             folder_with_year = folder + year
 
@@ -177,47 +178,47 @@ class Data_Handler:
         except Exception as e:
             logger.error(f"Error adding metadata for {full_file_path}: {e}")
 
-    def matcher(self):
+    def matcher(self, artist, album, cleaned_album, search_results):
         year = ""
         folder_name = ""
         found_browseId = None
-        if len(self.search_results):
+        if len(search_results):
             # Check for an exact match
-            for item in self.search_results:
+            for item in search_results:
                 cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
-                if self.cleaned_album == cleaned_youtube_title:
+                if cleaned_album == cleaned_youtube_title:
                     year = f" ({item['year']})"
                     found_browseId = item["browseId"]
                     folder_name = self.string_cleaner(item["title"])
-                    logger.warning("Exact Match Found : " + item["title"] + " for " + self.cleaned_album)
+                    logger.warning(f"Exact Match Found for: {artist} - {album} -> {item['artists'][0]['name']} - {item['title']}")
                     break
             else:
                 # Try again but check for partial match, or reverse the check
-                for item in self.search_results:
+                for item in search_results:
                     cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
-                    if self.cleaned_album in cleaned_youtube_title:
+                    if cleaned_album in cleaned_youtube_title:
                         year = f" ({item['year']})"
                         found_browseId = item["browseId"]
                         folder_name = self.string_cleaner(item["title"])
-                        logger.warning("Near Exact Match Found : " + item["title"] + " for " + self.cleaned_album)
+                        logger.warning(f"Reverse Match Found for: {artist} - {album} -> {item['artists'][0]['name']} - {item['title']}")
                         break
-                    if all(word in self.cleaned_album for word in cleaned_youtube_title.split()):
+                    if all(word in cleaned_album for word in cleaned_youtube_title.split()):
                         year = f" ({item['year']})"
                         found_browseId = item["browseId"]
                         folder_name = self.string_cleaner(item["title"])
-                        logger.warning("Partial Match Found : " + item["title"] + " for " + self.cleaned_album)
+                        logger.warning(f"Partial Match Found for: {artist} - {album} -> {item['artists'][0]['name']} - {item['title']}")
                         break
                 else:
                     # Otherwise select top result if fallback_to_top_result is true
                     if self.fallback_to_top_result:
-                        year = f" ({self.search_results[0]['year']})"
-                        found_browseId = self.search_results[0]["browseId"]
-                        folder_name = self.string_cleaner(self.search_results[0]["title"])
-                        logger.warning("Using top result as no match found : " + self.search_results[0]["title"] + " for " + self.cleaned_album)
+                        year = f" ({search_results[0]['year']})"
+                        found_browseId = search_results[0]["browseId"]
+                        folder_name = self.string_cleaner(search_results[0]["title"])
+                        logger.warning(f"Using top result as no match found but fallback is enabled: {artist} - {album} -> {search_results[0]['title']} - {search_results[0]['artists'][0]['name']}")
                     else:
-                        logger.error("No match found and fallback is turned off : " + self.cleaned_album)
+                        logger.error(f"No match found and fallback is turned off : {artist} - {album}")
         else:
-            logger.error("Search Result failed and did not find anything for : " + self.cleaned_album)
+            logger.error(f"Search for {artist} - {album} did not find anything!")
         return found_browseId, year, folder_name
 
     def master_queue(self):
