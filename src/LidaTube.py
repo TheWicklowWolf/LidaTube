@@ -12,7 +12,7 @@ from mutagen.id3 import ID3, TIT2, TPE1, TALB, TPE2, TYER, TDRC, TRCK
 
 
 class Data_Handler:
-    def __init__(self, lidarr_address, lidarr_api_key, thread_limit):
+    def __init__(self, lidarr_address, lidarr_api_key, thread_limit, fallback_to_top_result):
         self.thread_limit = thread_limit
         self.lidarrAddress = lidarr_address
         self.lidarrApiKey = lidarr_api_key
@@ -21,6 +21,7 @@ class Data_Handler:
         self.youtubeSuffix = "album"
         self.sleepInterval = 0
         self.download_folder = "downloads"
+        self.fallback_to_top_result = fallback_to_top_result
         self.reset()
 
     def reset(self):
@@ -204,10 +205,11 @@ class Data_Handler:
                         folder_name = self.string_cleaner(item["title"])
                         break
                 else:
-                    # Otherwise select top result
-                    year = f" ({self.search_results[0]['year']})"
-                    found_browseId = self.search_results[0]["browseId"]
-                    folder_name = self.string_cleaner(self.search_results[0]["title"])
+                    # Otherwise select top result if fallback_to_top_result is true
+                    if self.fallback_to_top_result:
+                        year = f" ({self.search_results[0]['year']})"
+                        found_browseId = self.search_results[0]["browseId"]
+                        folder_name = self.string_cleaner(self.search_results[0]["title"])
 
         return found_browseId, year, folder_name
 
@@ -278,7 +280,8 @@ logger = logging.getLogger()
 lidarr_address = os.environ.get("lidarr_address", "http://192.168.1.2:8686")
 lidarr_api_key = os.environ.get("lidarr_api_key", "0123456789")
 thread_limit = int(os.environ.get("thread_limit", 1))
-data_handler = Data_Handler(lidarr_address, lidarr_api_key, thread_limit)
+fallback_to_top_result = os.environ.get("fallback_to_top_result", False)  # if no match is found use top result
+data_handler = Data_Handler(lidarr_address, lidarr_api_key, thread_limit, fallback_to_top_result)
 
 
 @app.route("/")
