@@ -5,3 +5,4 @@ flask
 flask_socketio
 ytmusicapi
 yt_dlp
+unidecode
