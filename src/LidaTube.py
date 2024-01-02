@@ -1,7 +1,7 @@
 import logging
 import os
 import threading
-import unicodedata
+import unidecode
 import requests
 from ytmusicapi import YTMusic
 from flask import Flask, render_template
@@ -262,8 +262,7 @@ class Data_Handler:
             raw_string = re.sub(r'[\/:*?"<>|]', " ", input_string)
             temp_string = re.sub(r"\s+", " ", raw_string)
             stripped_string = temp_string.strip()
-            cleaned_string = re.sub(r"['‘’ʼ]", "'", stripped_string)
-            normalised_string = unicodedata.normalize("NFKD", cleaned_string)
+            normalised_string = unidecode.unidecode(stripped_string)
             return normalised_string
 
         elif isinstance(input_string, list):
@@ -272,8 +271,7 @@ class Data_Handler:
                 raw_string = re.sub(r'[\/:*?"<>|]', " ", string)
                 temp_string = re.sub(r"\s+", " ", raw_string)
                 stripped_string = temp_string.strip()
-                cleaned_string = re.sub(r"['‘’ʼ]", "'", stripped_string)
-                normalised_string = unicodedata.normalize("NFKD", cleaned_string)
+                normalised_string = unidecode.unidecode(stripped_string)
                 cleaned_strings.append(normalised_string)
             return cleaned_strings
 
