@@ -49,7 +49,6 @@ class Data_Handler:
                 wanted_missing_albums = response.json()
                 for album in wanted_missing_albums["records"]:
                     self.lidarr_items.append(album["artist"]["artistName"] + " - " + album["title"])
-
                 self.lidarr_items.sort()
                 ret = {"Status": "Success", "Data": self.lidarr_items}
             else:
