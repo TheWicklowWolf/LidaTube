@@ -43,12 +43,14 @@ class Data_Handler:
             self.stop_lidarr_event.clear()
             self.lidarr_items = []
             endpoint = f"{self.lidarrAddress}/api/v1/wanted/missing?includeArtist=true"
-            params = {"apikey": self.lidarrApiKey, "pageSize": self.lidarrMaxTags, "sortKey": "artists.sortname", "sortDir": "asc"}
+            params = {"apikey": self.lidarrApiKey, "pageSize": self.lidarrMaxTags, "sortKey": "artists.sortname", "sortDirection": "ascending"}
             response = requests.get(endpoint, params=params, timeout=self.lidarrApiTimeout)
             if response.status_code == 200:
                 wanted_missing_albums = response.json()
                 for album in wanted_missing_albums["records"]:
                     self.lidarr_items.append(album["artist"]["artistName"] + " - " + album["title"])
+
+                self.lidarr_items.sort()
                 ret = {"Status": "Success", "Data": self.lidarr_items}
             else:
                 ret = {"Status": "Error", "Code": response.status_code, "Data": response.text}
