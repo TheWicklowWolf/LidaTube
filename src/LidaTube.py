@@ -10,6 +10,7 @@ import yt_dlp
 import concurrent.futures
 import re
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, TPE2, TYER, TDRC, TRCK
+from thefuzz import fuzz
 
 
 class Data_Handler:
@@ -188,17 +189,18 @@ class Data_Handler:
             # Check for an exact match
             for item in search_results:
                 cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
-                if cleaned_album == cleaned_youtube_title:
+                if cleaned_album == cleaned_youtube_title or fuzz.ratio(cleaned_album, cleaned_youtube_title) >= 90:
                     year = f" ({item['year']})"
                     found_browseId = item["browseId"]
                     folder_name = self.string_cleaner(item["title"])
                     logger.warning(f"Exact Match Found for: {artist} - {album} -> {item['artists'][0]['name']} - {item['title']}")
+                    logger.warning(f"Match Ratio: {fuzz.ratio(cleaned_album, cleaned_youtube_title)}")
                     break
             else:
                 # Try again but check for partial match, or reverse the check
                 for item in search_results:
                     cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
-                    if cleaned_album in cleaned_youtube_title:
+                    if cleaned_album in cleaned_youtube_title or cleaned_youtube_title in cleaned_album:
                         year = f" ({item['year']})"
                         found_browseId = item["browseId"]
                         folder_name = self.string_cleaner(item["title"])
