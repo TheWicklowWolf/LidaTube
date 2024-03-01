@@ -1,4 +1,4 @@
-FROM python:3.11-alpine
+FROM python:3.12-alpine
 # Create User
 ARG UID=1000
 ARG GID=1000
