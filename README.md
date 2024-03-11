@@ -2,14 +2,14 @@
 ![Docker Pulls](https://img.shields.io/docker/pulls/thewicklowwolf/lidatube.svg)
 
 <p align="center">
-
-![image](https://github.com/TheWicklowWolf/LidaTube/assets/111055425/69396f7a-af18-42a9-b1ea-0585b488bdec)
-
-
+  <img src="/src/static/lidatube.png" alt="image">
 </p>
 
-Web GUI for finding and downloading missing Lidarr albums.
+<p align="center">
+  Web GUI for finding and downloading missing Lidarr albums.
+</p>
 
+---
 
 ## Run using docker-compose
 
