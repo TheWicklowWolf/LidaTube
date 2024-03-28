@@ -1,118 +1,375 @@
 import logging
 import os
+import json
 import threading
-import unidecode
 import requests
+import time
+from datetime import datetime
+import youtubesearchpython
 from ytmusicapi import YTMusic
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 import yt_dlp
 import concurrent.futures
 import re
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, TPE2, TYER, TDRC, TRCK
 from thefuzz import fuzz
+import _matcher
+import _general
 
 
-class Data_Handler:
-    def __init__(self, lidarr_address, lidarr_api_key, thread_limit, fallback_to_top_result):
-        self.thread_limit = thread_limit
-        self.lidarrAddress = lidarr_address
-        self.lidarrApiKey = lidarr_api_key
-        self.lidarrMaxTags = 250
-        self.lidarrApiTimeout = 120
-        self.youtubeSuffix = ""
-        self.sleepInterval = 0
-        self.download_folder = "downloads"
-        self.fallback_to_top_result = fallback_to_top_result
-        self.reset()
+class DataHandler:
+    def __init__(self):
+        logging.basicConfig(level=logging.WARNING, format="%(message)s")
+        self.general_logger = logging.getLogger()
 
-    def reset(self):
         self.lidarr_items = []
-        self.download_list = []
-        self.futures = []
-        self.stop_lidarr_event = threading.Event()
-        self.stop_downloading_event = threading.Event()
-        self.stop_monitoring_event = threading.Event()
-        self.monitor_active_flag = False
-        self.running_flag = False
-        self.status = "Idle"
+        self.lidarr_futures = []
+        self.lidarr_status = "idle"
+        self.lidarr_stop_event = threading.Event()
+
+        self.ytdlp_items = []
+        self.ytdlp_futures = []
+        self.ytdlp_status = "idle"
+        self.ytdlp_stop_event = threading.Event()
+
+        self.ytdlp_in_progress_flag = False
         self.index = 0
         self.percent_completion = 0
 
+        self.clients_connected_counter = 0
+        self.config_folder = "config"
+        self.download_folder = "downloads"
+        if not os.path.exists(self.config_folder):
+            os.makedirs(self.config_folder)
+        self.load_environ_or_config_settings()
+
+    def load_environ_or_config_settings(self):
+        # Defaults
+        default_settings = {
+            "lidarr_address": "http://192.168.1.2:8686",
+            "lidarr_api_key": "",
+            "lidarr_api_timeout": 120.0,
+            "thread_limit": 1,
+            "sleep_interval": 0,
+            "fallback_to_top_result": False,
+            "library_scan_on_completion": True,
+            "sync_schedule": [],
+            "minimum_match_ratio": 90,
+            "secondary_search": "YTS",
+        }
+
+        # Load settings from environmental variables (which take precedence) over the configuration file.
+        self.lidarr_address = os.environ.get("lidarr_address", "")
+        self.lidarr_api_key = os.environ.get("lidarr_api_key", "")
+        lidarr_api_timeout = os.environ.get("lidarr_api_timeout", "")
+        self.lidarr_api_timeout = float(lidarr_api_timeout) if lidarr_api_timeout else ""
+        thread_limit = os.environ.get("thread_limit", "")
+        self.thread_limit = int(thread_limit) if thread_limit else ""
+        sleep_interval = os.environ.get("sleep_interval", "")
+        self.sleep_interval = float(sleep_interval) if sleep_interval else ""
+        fallback_to_top_result = os.environ.get("fallback_to_top_result", "")
+        self.fallback_to_top_result = fallback_to_top_result.lower() == "true" if fallback_to_top_result != "" else ""
+        library_scan_on_completion = os.environ.get("library_scan_on_completion", "")
+        self.library_scan_on_completion = library_scan_on_completion.lower() == "true" if library_scan_on_completion != "" else ""
+        sync_schedule = os.environ.get("sync_schedule", "")
+        self.sync_schedule = self.parse_sync_schedule(sync_schedule)
+        minimum_match_ratio = os.environ.get("minimum_match_ratio", "")
+        self.minimum_match_ratio = float(minimum_match_ratio) if minimum_match_ratio else ""
+        self.secondary_search = os.environ.get("secondary_search", "")
+
+        # Load variables from the configuration file if not set by environmental variables.
+        try:
+            self.settings_config_file = os.path.join(self.config_folder, "settings_config.json")
+            if os.path.exists(self.settings_config_file):
+                self.general_logger.warning(f"Loading Settings via config file")
+                with open(self.settings_config_file, "r") as json_file:
+                    ret = json.load(json_file)
+                    for key in ret:
+                        if getattr(self, key) == "":
+                            setattr(self, key, ret[key])
+        except Exception as e:
+            self.general_logger.error(f"Error Loading Config: {str(e)}")
+
+        # Load defaults if not set by an environmental variable or configuration file.
+        for key, value in default_settings.items():
+            if getattr(self, key) == "":
+                setattr(self, key, value)
+
+        # Save config.
+        self.save_config_to_file()
+
+        # Start Scheduler
+        thread = threading.Thread(target=self.schedule_checker, name="Schedule_Thread")
+        thread.daemon = True
+        thread.start()
+
+    def save_config_to_file(self):
+        try:
+            with open(self.settings_config_file, "w") as json_file:
+                json.dump(
+                    {
+                        "lidarr_address": self.lidarr_address,
+                        "lidarr_api_key": self.lidarr_api_key,
+                        "lidarr_api_timeout": self.lidarr_api_timeout,
+                        "thread_limit": self.thread_limit,
+                        "sleep_interval": self.sleep_interval,
+                        "fallback_to_top_result": self.fallback_to_top_result,
+                        "library_scan_on_completion": self.library_scan_on_completion,
+                        "sync_schedule": self.sync_schedule,
+                        "minimum_match_ratio": self.minimum_match_ratio,
+                        "secondary_search": self.secondary_search,
+                    },
+                    json_file,
+                    indent=4,
+                )
+
+        except Exception as e:
+            self.general_logger.error(f"Error Saving Config: {str(e)}")
+
+    def connect(self):
+        socketio.emit("lidarr_update", {"status": self.lidarr_status, "data": self.lidarr_items})
+        socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+        self.clients_connected_counter += 1
+
+    def disconnect(self):
+        self.clients_connected_counter = max(0, self.clients_connected_counter - 1)
+
+    def schedule_checker(self):
+        try:
+            while True:
+                current_hour = time.localtime().tm_hour
+                within_time_window = any(t == current_hour for t in self.sync_schedule)
+
+                if within_time_window:
+                    self.general_logger.warning(f"Time to Start - as in a time window: {self.sync_schedule}")
+                    self.get_missing_from_lidarr()
+                    if self.lidarr_items:
+                        x = list(range(len(self.lidarr_items)))
+                        self.add_items_to_download(x)
+                    else:
+                        self.general_logger.warning("No Missing Albums")
+
+                    self.general_logger.warning("Big sleep for 1 Hour")
+                    time.sleep(3600)
+                    self.general_logger.warning(f"Checking every 10 minutes as not in a sync time window: {self.sync_schedule}")
+                else:
+                    time.sleep(600)
+
+        except Exception as e:
+            self.general_logger.error(f"Error in Scheduler: {str(e)}")
+            self.general_logger.error(f"Scheduler Stopped")
+
     def get_missing_from_lidarr(self):
         try:
-            self.stop_lidarr_event.clear()
+            self.general_logger.warning(f"Accessing Lidarr API")
+            self.lidarr_status = "busy"
+            self.lidarr_stop_event.clear()
             self.lidarr_items = []
-            endpoint = f"{self.lidarrAddress}/api/v1/wanted/missing?includeArtist=true"
-            params = {"apikey": self.lidarrApiKey, "pageSize": self.lidarrMaxTags, "sortKey": "artists.sortname", "sortDirection": "ascending"}
-            response = requests.get(endpoint, params=params, timeout=self.lidarrApiTimeout)
-            if response.status_code == 200:
-                wanted_missing_albums = response.json()
-                for album in wanted_missing_albums["records"]:
-                    self.lidarr_items.append(album["artist"]["artistName"] + " - " + album["title"])
-                self.lidarr_items.sort()
-                ret = {"Status": "Success", "Data": self.lidarr_items}
-            else:
-                ret = {"Status": "Error", "Code": response.status_code, "Data": response.text}
+            page = 1
+            while True:
+                if self.lidarr_stop_event.is_set():
+                    return
+                endpoint = f"{self.lidarr_address}/api/v1/wanted/missing?includeArtist=true"
+                params = {"apikey": self.lidarr_api_key, "page": page, "sortKey": "artists.sortname", "sortDirection": "ascending"}
+                response = requests.get(endpoint, params=params, timeout=self.lidarr_api_timeout)
+                if response.status_code == 200:
+                    wanted_missing_albums = response.json()
+                    if not wanted_missing_albums["records"]:
+                        break
+                    for album in wanted_missing_albums["records"]:
+                        if self.lidarr_stop_event.is_set():
+                            break
+                        parsed_date = datetime.fromisoformat(album["releaseDate"].replace("Z", "+00:00"))
+                        album_year = parsed_date.year
+                        new_item = {
+                            "artist_id": album["artistId"],
+                            "artist_path": album["artist"]["path"],
+                            "artist": album["artist"]["artistName"],
+                            "album_name": album["title"],
+                            "album_year": album_year,
+                            "album_id": album["id"],
+                            "album_genres": ", ".join(album["genres"]),
+                            "track_count": "",
+                            "missing_count": "",
+                            "missing_tracks": [],
+                            "checked": True,
+                            "status": "",
+                        }
+                        self.lidarr_items.append(new_item)
+
+                    page += 1
+                else:
+                    self.general_logger.error(f"Lidarr Wanted API Error Code: {response.status_code}")
+                    self.general_logger.error(f"Lidarr Wanted API Error Text: {response.text}")
+                    socketio.emit("new_toast_msg", {"title": f"Lidarr API Error: {response.status_code}", "message": response.text})
+                    break
+
+            self.lidarr_items.sort(key=lambda x: x["artist"])
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.thread_limit) as executor:
+                self.lidarr_futures = [executor.submit(self.get_missing_tracks_for_album, album) for album in self.lidarr_items]
+                concurrent.futures.wait(self.lidarr_futures)
+
+            self.lidarr_status = "stopped" if self.lidarr_stop_event.is_set() else "complete"
 
         except Exception as e:
-            logger.error(str(e))
-            ret = {"Status": "Error", "Code": 500, "Data": str(e)}
+            self.general_logger.error(f"Error Getting Missing Albums: {str(e)}")
+            self.lidarr_status = "error"
+            socketio.emit("new_toast_msg", {"title": "Error Getting Missing Albums", "message": str(e)})
 
         finally:
-            if not self.stop_lidarr_event.is_set():
-                socketio.emit("lidarr_status", ret)
-            else:
-                ret = {"Status": "Error", "Code": "", "Data": ""}
-                socketio.emit("lidarr_status", ret)
+            socketio.emit("lidarr_update", {"status": self.lidarr_status, "data": self.lidarr_items})
 
-    def find_youtube_link_and_download(self, req_album):
+    def get_missing_tracks_for_album(self, req_album):
+        self.general_logger.warning(f'Reading Missing Track list of {req_album["artist"]} - {req_album["album_name"]} from Lidarr API')
+        endpoint = f"{self.lidarr_address}/api/v1/track"
+        params = {"apikey": self.lidarr_api_key, "albumId": req_album["album_id"]}
         try:
-            self.ytmusic = YTMusic()
-            query_text = req_album["Item"]
-            artist, album = query_text.split(" - ", maxsplit=1)
+            response = requests.get(endpoint, params=params, timeout=self.lidarr_api_timeout)
+            if response.status_code == 200:
+                tracks = response.json()
+                track_count = len(tracks)
+                for track in tracks:
+                    if self.lidarr_stop_event.is_set():
+                        return
+                    if not track.get("hasFile", False):
+                        new_item = {
+                            "artist": req_album["artist"],
+                            "track_title": track["title"],
+                            "track_number": track["absoluteTrackNumber"],
+                            "link": "",
+                            "title_of_link": "",
+                        }
+                        req_album["missing_tracks"].append(new_item)
 
-            cleaned_album = self.string_cleaner(album).lower()
-            search_results = self.ytmusic.search(query=query_text, filter="albums", limit=10)
+                req_album["track_count"] = track_count
+                req_album["missing_count"] = len(req_album["missing_tracks"])
 
-            found_browseId, year, album_found_name = self.matcher(artist, album, cleaned_album, search_results)
-
-            folder = os.path.join(self.string_cleaner(artist), self.string_cleaner(album_found_name))
-            folder_with_year = folder + year
-
-            if found_browseId:
-                req_album["Status"] = "Album Found"
-                album_details = self.ytmusic.get_album(found_browseId)
-                songs_info = []
-
-                for i, track in enumerate(album_details["tracks"], start=1):
-                    song_title = track["title"]
-                    song_link = f"https://www.youtube.com/watch?v={track['videoId']}"
-                    songs_info.append({"title": song_title, "link": song_link, "track_no": i})
             else:
-                raise Exception("Nothing Found")
+                self.general_logger.error(req_album["album_name"])
+                self.general_logger.error(f"Lidarr Track API Error Code: {response.status_code}")
+                self.general_logger.error(f"Lidarr Track API Error Text: {response.text}")
 
         except Exception as e:
-            logger.error(f"Error downloading album: {req_album}. Error message: {e}")
-            req_album["Status"] = "Search Failed"
+            self.general_logger.error(req_album["album_name"])
+            self.general_logger.error(f"Error Getting Missing Tracks: {str(e)}")
+            socketio.emit("new_toast_msg", {"title": "Error Getting Missing Tracks", "message": str(e)})
+
+    def trigger_lidarr_scan(self):
+        try:
+            endpoint = "/api/v1/rootfolder"
+            headers = {"X-Api-Key": self.lidarr_api_key}
+            root_folder_list = []
+            response = requests.get(f"{self.lidarr_address}{endpoint}", headers=headers)
+            endpoint = "/api/v1/command"
+            if response.status_code == 200:
+                root_folders = response.json()
+                for folder in root_folders:
+                    root_folder_list.append(folder["path"])
+            else:
+                self.general_logger.warning(f"No Lidarr root folders found")
+
+            if root_folder_list:
+                data = {"name": "RescanFolders", "folders": root_folder_list}
+                headers = {"X-Api-Key": self.lidarr_api_key, "Content-Type": "application/json"}
+                response = requests.post(f"{self.lidarr_address}{endpoint}", json=data, headers=headers)
+                if response.status_code != 201:
+                    self.general_logger.warning(f"Failed to start lidarr library scan")
+
+        except Exception as e:
+            self.general_logger.error(f"Lidarr library scan failed: {str(e)}")
 
         else:
-            song_count = 0
-            total = len(songs_info)
-            artist_song_str = self.string_cleaner(artist)
+            self.general_logger.warning(f"Lidarr library scan started")
 
-            for song in songs_info:
-                if self.stop_downloading_event.is_set():
-                    break
+    def add_items_to_download(self, data):
+        try:
+            self.ytdlp_stop_event.clear()
+            if self.ytdlp_status == "complete" or self.ytdlp_status == "stopped":
+                self.ytdlp_items = []
+                self.percent_completion = 0
+            for i in range(len(self.lidarr_items)):
+                if i in data:
+                    self.lidarr_items[i]["status"] = "Queued"
+                    self.lidarr_items[i]["checked"] = True
+                    self.ytdlp_items.append(self.lidarr_items[i])
                 else:
-                    title = song["title"]
+                    self.lidarr_items[i]["checked"] = False
+
+            if self.ytdlp_in_progress_flag == False:
+                self.index = 0
+                self.ytdlp_in_progress_flag = True
+                thread = threading.Thread(target=self.master_queue, name="Queue_Thread")
+                thread.daemon = True
+                thread.start()
+
+        except Exception as e:
+            self.general_logger.error(str(e))
+            socketio.emit("new_toast_msg", {"title": "Error adding new items", "message": str(e)})
+
+        finally:
+            socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+            socketio.emit("new_toast_msg", {"title": "Download Queue Updated", "message": "New Items added to Queue"})
+
+    def master_queue(self):
+        try:
+            while not self.ytdlp_stop_event.is_set() and self.index < len(self.ytdlp_items):
+                self.ytdlp_status = "running"
+                with concurrent.futures.ThreadPoolExecutor(max_workers=self.thread_limit) as executor:
+                    self.ytdlp_futures = []
+                    start_position = self.index
+                    for req_album in self.ytdlp_items[start_position:]:
+                        if self.ytdlp_stop_event.is_set():
+                            break
+                        self.ytdlp_futures.append(executor.submit(self.find_link_and_download, req_album))
+                    concurrent.futures.wait(self.ytdlp_futures)
+
+            if self.ytdlp_stop_event.is_set():
+                self.ytdlp_status = "stopped"
+                self.general_logger.warning("Downloading Stopped")
+                self.ytdlp_in_progress_flag = False
+            else:
+                self.ytdlp_status = "complete"
+                self.general_logger.warning("Downloading Finished")
+                self.ytdlp_in_progress_flag = False
+                if self.library_scan_on_completion:
+                    self.trigger_lidarr_scan()
+
+        except Exception as e:
+            self.general_logger.error(f"Error in Master Queue: {str(e)}")
+            self.ytdlp_status = "failed"
+            socketio.emit("new_toast_msg", {"title": "Error in Master Queue", "message": str(e)})
+
+        finally:
+            socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+            socketio.emit("new_toast_msg", {"title": "End of Session", "message": f"Downloading {self.ytdlp_status.capitalize()}"})
+
+    def find_link_and_download(self, req_album):
+        try:
+            self._link_finder(req_album)
+            if self.ytdlp_stop_event.is_set():
+                return
+            req_album["status"] = "Starting Download"
+            artist_str = os.path.basename(req_album["artist_path"].rstrip("/"))
+            album_name = _general.convert_to_lidarr_format(req_album["album_name"])
+            folder_with_year = f'{album_name} ({req_album["album_year"]})'
+            grabbed_count = 0
+            existing_count = 0
+            error_count = 0
+            song_links = [x for x in req_album["missing_tracks"] if x["link"] != ""]
+            total_req = len(song_links)
+            for song in song_links:
+                if self.ytdlp_stop_event.is_set():
+                    return
+                else:
+                    title = song["title_of_link"]
                     link = song["link"]
-                    title_str = self.string_cleaner(title)
-                    track_no = str(song["track_no"]).zfill(2)
-                    file_name = os.path.join(folder_with_year, artist_song_str + " - " + album_found_name + " - " + track_no + " - " + title_str)
+                    title_str = _general.convert_to_lidarr_format(title)
+                    track_no = str(song["track_number"]).zfill(2)
+                    file_name = os.path.join(artist_str, folder_with_year, f"{artist_str} - {album_name} - {track_no} - {title_str}")
                     full_file_path = os.path.join(self.download_folder, file_name)
 
-                    if not os.path.exists(full_file_path + ".mp3"):
+                    if not os.path.exists(f"{full_file_path}.mp3"):
                         try:
                             ydl_opts = {
                                 "ffmpeg_location": "/usr/bin/ffmpeg",
@@ -120,7 +377,7 @@ class Data_Handler:
                                 "outtmpl": full_file_path,
                                 "quiet": False,
                                 "progress_hooks": [self.progress_callback],
-                                "sleepInterval": self.sleepInterval,
+                                "sleepInterval": self.sleep_interval,
                                 "writethumbnail": True,
                                 "postprocessors": [
                                     {
@@ -138,164 +395,310 @@ class Data_Handler:
                             }
                             yt_downloader = yt_dlp.YoutubeDL(ydl_opts)
                             yt_downloader.download([link])
-                            logger.warning("yt_dl Complete : " + link)
-                            self.add_metadata(song, album_details, full_file_path + ".mp3")
+                            self.general_logger.warning(f"DL Complete : {link}")
+                            _general.add_metadata(self.general_logger, song, req_album, f"{full_file_path}.mp3")
+                            grabbed_count += 1
+                            if self.ytdlp_stop_event.is_set():
+                                return
 
                         except Exception as e:
-                            logger.error(f"Error downloading song: {link}. Error message: {e}")
+                            self.general_logger.error(f"Error downloading song: {link}. Error message: {e}")
+                            error_count += 1
 
                     else:
-                        logger.warning("File Already Exists: " + artist + " " + title)
-                song_count += 1
-                req_album["Status"] = "Processed: " + str(song_count) + " of " + str(total)
-            if self.stop_downloading_event.is_set():
-                req_album["Status"] = "Download Stopped"
+                        existing_count += 1
+                        self.general_logger.warning(f"File Already Exists: {artist_str} - {title_str}")
+
+                song_processed_count = grabbed_count + error_count + existing_count
+                req_album["status"] = f"Processed: {song_processed_count} of {total_req}"
+                self.percent_completion = 100 * (self.index / len(self.ytdlp_items)) if self.ytdlp_items else 0
+                socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+
+            if self.ytdlp_stop_event.is_set():
+                req_album["status"] = "Download Stopped"
             else:
-                req_album["Status"] = "Download Complete"
+                if grabbed_count + existing_count == total_req:
+                    req_album["status"] = "Download Complete"
+                elif error_count == total_req:
+                    req_album["status"] = "Download Failed"
+                else:
+                    req_album["status"] = "Partially Complete"
+
+        except Exception as e:
+            self.general_logger.error(f"Error Downloading: {str(e)}")
+            req_album["status"] = "Download Error"
+
         finally:
             self.index += 1
+            self.percent_completion = 100 * (self.index / len(self.ytdlp_items)) if self.ytdlp_items else 0
+            socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
 
     def progress_callback(self, d):
-        if self.stop_downloading_event.is_set():
+        if self.ytdlp_stop_event.is_set():
             raise Exception("Cancelled")
         if d["status"] == "finished":
-            logger.warning("Download complete")
+            self.general_logger.warning("Download complete")
 
         elif d["status"] == "downloading":
-            logger.warning(f'Downloaded {d["_percent_str"]} of {d["_total_bytes_str"]} at {d["_speed_str"]}')
+            self.general_logger.warning(f'Downloaded {d["_percent_str"]} of {d["_total_bytes_str"]} at {d["_speed_str"]}')
 
-    def add_metadata(self, song, album_details, full_file_path):
+    def _link_finder(self, req_album):
         try:
-            metadata = ID3(full_file_path)
-            metadata.add(TIT2(encoding=3, text=song["title"]))
-            metadata.add(TRCK(encoding=3, text=str(song["track_no"])))
-            metadata.add(TPE1(encoding=3, text=album_details["artists"][0]["name"]))
-            metadata.add(TALB(encoding=3, text=album_details["title"]))
-            metadata.add(TPE2(encoding=3, text=album_details["artists"][0]["name"]))
-            metadata.add(TYER(encoding=3, text=album_details["year"]))
-            metadata.add(TDRC(encoding=3, text=album_details["year"]))
-            metadata.save()
+            self.general_logger.warning(f'Searching for Album: {req_album["artist"]} - {req_album["album_name"]}')
+            artist = req_album["artist"]
+            album_name = req_album["album_name"]
+            number_tracks_in_album = req_album["track_count"]
+            number_of_missing_tracks = req_album["missing_count"]
+            query_text = f"{artist} - {album_name}"
 
-            logger.warning(f"Metadata added for {full_file_path}")
+            cleaned_artist = _general.string_cleaner(artist).lower()
+            cleaned_album = _general.string_cleaner(album_name).lower()
 
-        except Exception as e:
-            logger.error(f"Error adding metadata for {full_file_path}: {e}")
+            whole_album_required = number_tracks_in_album == number_of_missing_tracks
+            if whole_album_required:
+                self._get_album_links(req_album, artist, album_name, cleaned_artist, cleaned_album, query_text)
 
-    def matcher(self, artist, album, cleaned_album, search_results):
-        year = ""
-        folder_name = ""
-        found_browseId = None
-        if len(search_results):
-            # Check for an exact match
-            for item in search_results:
-                cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
-                if cleaned_album == cleaned_youtube_title or fuzz.ratio(cleaned_album, cleaned_youtube_title) >= 90:
-                    year = f" ({item['year']})"
-                    found_browseId = item["browseId"]
-                    folder_name = self.string_cleaner(item["title"])
-                    logger.warning(f"Exact Match Found for: {artist} - {album} -> {item['artists'][0]['name']} - {item['title']}")
-                    logger.warning(f"Match Ratio: {fuzz.ratio(cleaned_album, cleaned_youtube_title)}")
-                    break
+            # Check if there are links for each track
+            number_of_links = len([x["link"] for x in req_album["missing_tracks"] if x["link"] != ""])
+            all_tracks_found = number_of_links == len(req_album["missing_tracks"])
+            if all_tracks_found:
+                req_album["status"] = "All Tracks Found"
+                socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+                self.general_logger.warning(f'Links found for all tracks of: {req_album["artist"]} - {req_album["album_name"]}')
             else:
-                # Try again but check for partial match, or reverse the check
-                for item in search_results:
-                    cleaned_youtube_title = self.string_cleaner(item["title"]).lower()
-                    if cleaned_album in cleaned_youtube_title or cleaned_youtube_title in cleaned_album:
-                        year = f" ({item['year']})"
-                        found_browseId = item["browseId"]
-                        folder_name = self.string_cleaner(item["title"])
-                        logger.warning(f"Reverse Match Found for: {artist} - {album} -> {item['artists'][0]['name']} - {item['title']}")
-                        break
-                    if all(word in cleaned_album for word in cleaned_youtube_title.split()):
-                        year = f" ({item['year']})"
-                        found_browseId = item["browseId"]
-                        folder_name = self.string_cleaner(item["title"])
-                        logger.warning(f"Partial Match Found for: {artist} - {album} -> {item['artists'][0]['name']} - {item['title']}")
-                        break
+                req_album["status"] = "Searching"
+                socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+                self._get_song_links(req_album, artist, cleaned_artist)
+
+                # Second Check
+                number_of_links = len([x["link"] for x in req_album["missing_tracks"] if x["link"] != ""])
+                all_tracks_found = number_of_links == len(req_album["missing_tracks"])
+                if all_tracks_found:
+                    req_album["status"] = "All Tracks Found"
+                    socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+                    self.general_logger.warning(f'Links found for all Tracks of: {req_album["artist"]} - {req_album["album_name"]}')
                 else:
-                    # Otherwise select top result if fallback_to_top_result is true
-                    if self.fallback_to_top_result:
-                        year = f" ({search_results[0]['year']})"
-                        found_browseId = search_results[0]["browseId"]
-                        folder_name = self.string_cleaner(search_results[0]["title"])
-                        logger.warning(f"Using top result as no match found but fallback is enabled: {artist} - {album} -> {search_results[0]['title']} - {search_results[0]['artists'][0]['name']}")
-                    else:
-                        logger.error(f"No match found and fallback is turned off : {artist} - {album}. Top result was {search_results[0]['title']} - {search_results[0]['artists'][0]['name']}")
-        else:
-            logger.error(f"Search for {artist} - {album} did not find anything!")
-        return found_browseId, year, folder_name
-
-    def master_queue(self):
-        try:
-            while not self.stop_downloading_event.is_set() and self.index < len(self.download_list):
-                self.status = "Running"
-                with concurrent.futures.ThreadPoolExecutor(max_workers=self.thread_limit) as executor:
-                    self.futures = []
-                    start_position = self.index
-                    for album in self.download_list[start_position:]:
-                        if self.stop_downloading_event.is_set():
-                            break
-                        logger.warning("Searching for Album: " + album["Item"])
-                        self.futures.append(executor.submit(self.find_youtube_link_and_download, album))
-                    concurrent.futures.wait(self.futures)
-
-            if not self.stop_downloading_event.is_set():
-                self.status = "Complete"
-                logger.warning("Finished")
-                self.running_flag = False
-
-            else:
-                self.status = "Stopped"
-                logger.warning("Stopped")
-                self.running_flag = False
-                ret = {"Status": "Error", "Data": "Stopped"}
-                socketio.emit("yt_dlp_status", ret)
+                    self.general_logger.warning(f'Not all tracks found, searching again: {req_album["artist"]} - {req_album["album_name"]}')
+                    self._get_song_links_secondary(req_album, artist, cleaned_artist)
 
         except Exception as e:
-            logger.error(str(e))
-            self.status = "Stopped"
-            logger.warning("Stopped")
-            ret = {"Status": "Error", "Data": str(e)}
-            socketio.emit("yt_dlp_status", ret)
+            self.general_logger.error(f"Error in Link Finder: {str(e)}")
 
-    def string_cleaner(self, input_string):
-        if isinstance(input_string, str):
-            raw_string = re.sub(r'[\/:*?"<>|]', " ", input_string)
-            temp_string = re.sub(r"\s+", " ", raw_string)
-            stripped_string = temp_string.strip()
-            normalised_string = unidecode.unidecode(stripped_string)
-            return normalised_string
+    def _get_song_links_secondary(self, req_album, artist, cleaned_artist):
+        try:
+            ytmusic = YTMusic()
+            for missing_track in req_album["missing_tracks"]:
+                if self.ytdlp_stop_event.is_set():
+                    return
+                if missing_track["link"] == "":
+                    song_title = missing_track["track_title"]
+                    cleaned_song_title = _general.string_cleaner(song_title).lower()
+                    query_text = f'{missing_track["artist"]} - {missing_track["track_title"]}'
+                    search_results = ytmusic.search(query=query_text, filter="songs", limit=20)
+                    song_match = _matcher.song_matcher(self.minimum_match_ratio, artist, cleaned_artist, song_title, cleaned_song_title, search_results)
+                    if song_match:
+                        missing_track["link"] = f'https://www.youtube.com/watch?v={song_match["videoId"]}'
+                        missing_track["title_of_link"] = song_match["title"]
+                    elif self.fallback_to_top_result:
+                        if search_results:
+                            missing_track["link"] = f'https://www.youtube.com/watch?v={search_results[0]["videoId"]}'
+                            missing_track["title_of_link"] = search_results[0]["title"]
+                    else:
+                        song_title = missing_track["track_title"]
+                        search_results = self._yt_search(query_text)
+                        song_match = _matcher.song_matcher_yt(self.minimum_match_ratio, query_text, search_results)
+                        if song_match:
+                            if self.secondary_search == "YTS":
+                                missing_track["link"] = song_match["link"]
+                                missing_track["title_of_link"] = song_match["title"]
+                            elif self.secondary_search == "YTDLP":
+                                missing_track["link"] = song_match["webpage_url"]
+                                missing_track["title_of_link"] = song_match["title"]
 
-        elif isinstance(input_string, list):
-            cleaned_strings = []
-            for string in input_string:
-                raw_string = re.sub(r'[\/:*?"<>|]', " ", string)
-                temp_string = re.sub(r"\s+", " ", raw_string)
-                stripped_string = temp_string.strip()
-                normalised_string = unidecode.unidecode(stripped_string)
-                cleaned_strings.append(normalised_string)
-            return cleaned_strings
+            number_of_links = len([x["link"] for x in req_album["missing_tracks"] if x["link"] != ""])
+            self.general_logger.warning(f'Found {number_of_links} of the missing {len(req_album["missing_tracks"])} tracks: {req_album["artist"]} - {req_album["album_name"]}')
 
-    def monitor(self):
-        while not self.stop_monitoring_event.is_set():
-            self.percent_completion = 100 * (self.index / len(self.download_list)) if self.download_list else 0
-            custom_data = {"Data": self.download_list, "Status": self.status, "Percent_Completion": self.percent_completion}
-            socketio.emit("progress_status", custom_data)
-            self.stop_monitoring_event.wait(1)
+        except Exception as e:
+            self.general_logger.error(f"Error in Secondary Search: {str(e)}")
+
+    def _get_song_links(self, req_album, artist, cleaned_artist):
+        try:
+            ytmusic = YTMusic()
+            self.general_logger.warning(f'Searching for individual Tracks: {req_album["artist"]} - {req_album["album_name"]}')
+            for missing_track in req_album["missing_tracks"]:
+                if self.ytdlp_stop_event.is_set():
+                    return
+                if missing_track["link"] == "":
+                    song_title = missing_track["track_title"]
+                    cleaned_song_title = _general.string_cleaner(song_title).lower()
+
+                    query_text = f'{missing_track["artist"]} - {missing_track["track_title"]}'
+                    search_results = ytmusic.search(query=query_text, filter="songs", limit=5)
+                    song_match = _matcher.song_matcher(self.minimum_match_ratio, artist, cleaned_artist, song_title, cleaned_song_title, search_results)
+                    if song_match:
+                        missing_track["link"] = f'https://www.youtube.com/watch?v={song_match["videoId"]}'
+                        missing_track["title_of_link"] = song_match["title"]
+
+                    elif self.fallback_to_top_result:
+                        if search_results:
+                            missing_track["link"] = f'https://www.youtube.com/watch?v={search_results[0]["videoId"]}'
+                            missing_track["title_of_link"] = search_results[0]["title"]
+
+        except Exception as e:
+            self.general_logger.error(f"Error in Song Search: {str(e)}")
+
+    def _get_album_links(self, req_album, artist, album_name, cleaned_artist, cleaned_album, query_text):
+        try:
+            ytmusic = YTMusic()
+            search_results = ytmusic.search(query=query_text, filter="albums", limit=10)
+
+            self.general_logger.warning(f'Searching for whole Album: {req_album["artist"]} - {req_album["album_name"]}')
+            album_match = _matcher.album_matcher(self.minimum_match_ratio, artist, album_name, cleaned_artist, cleaned_album, search_results)
+            if album_match:
+                req_album["status"] = "Album Found"
+                album_details = ytmusic.get_album(album_match["browseId"])
+
+                for track in album_details["tracks"]:
+                    if self.ytdlp_stop_event.is_set():
+                        return
+                    for missing_track in req_album["missing_tracks"]:
+                        missing_track_title = _general.string_cleaner(missing_track["track_title"])
+                        song_title = _general.string_cleaner(track["title"])
+                        if fuzz.ratio(song_title, missing_track_title) > 90:
+                            missing_track["link"] = f'https://www.youtube.com/watch?v={track["videoId"]}'
+                            missing_track["title_of_link"] = track["title"]
+                            break
+
+            elif self.fallback_to_top_result:
+                if search_results:
+                    req_album["status"] = "Album Found"
+                    album_details = ytmusic.get_album(search_results[0]["browseId"])
+
+                    for track in album_details["tracks"]:
+                        if self.ytdlp_stop_event.is_set():
+                            return
+                        for missing_track in req_album["missing_tracks"]:
+                            missing_track_title = _general.string_cleaner(missing_track["track_title"])
+                            song_title = _general.string_cleaner(track["title"])
+                            if fuzz.ratio(song_title, missing_track_title) > 90:
+                                missing_track["link"] = f'https://www.youtube.com/watch?v={track["videoId"]}'
+                                missing_track["title_of_link"] = track["title"]
+                                break
+                else:
+                    self.general_logger.warning(f'No search results for album: {req_album["artist"]} - {req_album["album_name"]}')
+
+            else:
+                self.general_logger.warning(f'Not matching album for: {req_album["artist"]} - {req_album["album_name"]}')
+
+        except Exception as e:
+            self.general_logger.error(f"Error in Album Search: {str(e)}")
+
+    def _yt_search(self, query_text):
+        try:
+            if self.secondary_search == "YTDLP":
+                ydl_opts = {
+                    "default_search": "ytsearch10",
+                    "quiet": True,
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    search = ydl.extract_info(query_text, download=False)
+                    search_results = search.get("entries", [])
+
+            elif self.secondary_search == "YTS":
+                videos_search = youtubesearchpython.VideosSearch(query_text, limit=10)
+                search_results = videos_search.result()["result"]
+
+            if self.ytdlp_stop_event.is_set():
+                return
+            else:
+                return search_results
+
+        except Exception as e:
+            self.general_logger.error(f"Error in YouTube Search: {str(e)}")
+
+    def reset_lidarr(self):
+        self.lidarr_stop_event.set()
+        for future in self.lidarr_futures:
+            if not future.done():
+                future.cancel()
+        self.lidarr_items = []
+
+    def stop_ytdlp(self):
+        try:
+            self.ytdlp_stop_event.set()
+            for future in self.ytdlp_futures:
+                if not future.done():
+                    future.cancel()
+            for x in self.ytdlp_items[self.index :]:
+                x["status"] = "Download Stopped"
+
+        except Exception as e:
+            self.general_logger.error(f"Error Stopping yt_dlp: {str(e)}")
+
+        finally:
+            self.ytdlp_status = "stopped"
+            socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+
+    def reset_ytdlp(self):
+        try:
+            self.ytdlp_stop_event.set()
+            for future in self.ytdlp_futures:
+                if not future.done():
+                    future.cancel()
+            self.ytdlp_items = []
+            self.percent_completion = 0
+
+        except Exception as e:
+            self.general_logger.error(f"Error Stopping yt_dlp: {str(e)}")
+
+        else:
+            self.general_logger.warning("Reset Complete")
+
+        finally:
+            socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+
+    def update_settings(self, data):
+        try:
+            self.lidarr_address = data["lidarr_address"]
+            self.lidarr_api_key = data["lidarr_api_key"]
+            self.sleep_interval = float(data["sleep_interval"])
+            self.minimum_match_ratio = float(data["minimum_match_ratio"])
+            self.sync_schedule = self.parse_sync_schedule(data["sync_schedule"])
+
+        except Exception as e:
+            self.general_logger.error(f"Failed to update settings: {str(e)}")
+
+    def parse_sync_schedule(self, input_string):
+        try:
+            ret = []
+            if input_string != "":
+                raw_sync_schedule = [int(re.sub(r"\D", "", start_time.strip())) for start_time in input_string.split(",")]
+                temp_sync_schedule = [0 if x < 0 or x > 23 else x for x in raw_sync_schedule]
+                cleaned_sync_schedule = sorted(list(set(temp_sync_schedule)))
+                ret = cleaned_sync_schedule
+
+        except Exception as e:
+            self.general_logger.error(f"Time not in correct format: {str(e)}")
+            self.general_logger.error(f"Schedule Set to {ret}")
+
+        finally:
+            return ret
+
+    def load_settings(self):
+        data = {
+            "lidarr_address": self.lidarr_address,
+            "lidarr_api_key": self.lidarr_api_key,
+            "sleep_interval": self.sleep_interval,
+            "sync_schedule": self.sync_schedule,
+            "minimum_match_ratio": self.minimum_match_ratio,
+        }
+        socketio.emit("settings_loaded", data)
 
 
 app = Flask(__name__)
 app.secret_key = "secret_key"
 socketio = SocketIO(app)
-
-logging.basicConfig(level=logging.DEBUG, format="%(message)s")
-logger = logging.getLogger()
-
-lidarr_address = os.environ.get("lidarr_address", "http://192.168.1.2:8686")
-lidarr_api_key = os.environ.get("lidarr_api_key", "0123456789")
-thread_limit = int(os.environ.get("thread_limit", 1))
-fallback_to_top_result = os.environ.get("fallback_to_top_result", False)  # if no match is found use top result
-data_handler = Data_Handler(lidarr_address, lidarr_api_key, thread_limit, fallback_to_top_result)
+data_handler = DataHandler()
 
 
 @app.route("/")
@@ -303,96 +706,57 @@ def home():
     return render_template("base.html")
 
 
-@socketio.on("lidarr")
+@socketio.on("lidarr_get_wanted")
 def lidarr():
     thread = threading.Thread(target=data_handler.get_missing_from_lidarr, name="Lidarr_Thread")
     thread.daemon = True
     thread.start()
 
 
+@socketio.on("stop_lidarr")
+def stop_lidarr():
+    data_handler.lidarr_stop_event.set()
+
+
+@socketio.on("reset_lidarr")
+def reset_lidarr():
+    data_handler.reset_lidarr()
+
+
+@socketio.on("stop_ytdlp")
+def stop_ytdlp():
+    data_handler.stop_ytdlp()
+
+
+@socketio.on("reset_ytdlp")
+def reset_ytdlp():
+    data_handler.reset_ytdlp()
+
+
 @socketio.on("add_to_download_list")
 def add_to_download_list(data):
-    try:
-        data_handler.stop_downloading_event.clear()
-        if data_handler.status == "Complete":
-            data_handler.download_list = []
-        for item in data["Data"]:
-            full_item = {"Item": item, "Status": "Queued"}
-            data_handler.download_list.append(full_item)
-
-        if data_handler.running_flag == False:
-            data_handler.index = 0
-            data_handler.running_flag = True
-            thread = threading.Thread(target=data_handler.master_queue, name="Queue_Thread")
-            thread.daemon = True
-            thread.start()
-
-        ret = {"Status": "Success"}
-
-    except Exception as e:
-        logger.error(str(e))
-        ret = {"Status": "Error", "Data": str(e)}
-
-    finally:
-        socketio.emit("yt_dlp_status", ret)
+    data_handler.add_items_to_download(data)
 
 
 @socketio.on("connect")
 def connection():
-    if data_handler.monitor_active_flag == False:
-        data_handler.stop_monitoring_event.clear()
-        thread = threading.Thread(target=data_handler.monitor, name="Monitor_Thread")
-        thread.daemon = True
-        thread.start()
-        data_handler.monitor_active_flag = True
-
-
-@socketio.on("loadSettings")
-def loadSettings():
-    data = {
-        "lidarrAddress": data_handler.lidarrAddress,
-        "lidarrApiKey": data_handler.lidarrApiKey,
-        "lidarrApiTimeout": data_handler.lidarrApiTimeout,
-        "lidarrMaxTags": data_handler.lidarrMaxTags,
-        "youtubeSuffix": data_handler.youtubeSuffix,
-        "sleepInterval": data_handler.sleepInterval,
-    }
-    socketio.emit("settingsLoaded", data)
-
-
-@socketio.on("updateSettings")
-def updateSettings(data):
-    data_handler.lidarrAddress = data["lidarrAddress"]
-    data_handler.lidarrApiKey = data["lidarrApiKey"]
-    data_handler.lidarrApiTimeout = int(data["lidarrApiTimeout"])
-    data_handler.lidarrMaxTags = int(data["lidarrMaxTags"])
-    data_handler.youtubeSuffix = data["youtubeSuffix"]
-    data_handler.sleepInterval = int(data["sleepInterval"])
+    data_handler.connect()
 
 
 @socketio.on("disconnect")
 def disconnect():
-    data_handler.stop_monitoring_event.set()
-    data_handler.monitor_active_flag = False
+    data_handler.disconnect()
 
 
-@socketio.on("stopper")
-def stopper():
-    data_handler.stop_lidarr_event.set()
-    data_handler.stop_downloading_event.set()
-    for album in data_handler.download_list[data_handler.index :]:
-        album["Status"] = "Download Cancelled"
-    for future in data_handler.futures:
-        if not future.done():
-            future.cancel()
+@socketio.on("load_settings")
+def load_settings():
+    data_handler.load_settings()
 
 
-@socketio.on("reset")
-def reset():
-    stopper()
-    data_handler.reset()
-    custom_data = {"Data": data_handler.download_list, "Status": data_handler.status, "Percent_Completion": data_handler.percent_completion}
-    socketio.emit("progress_status", custom_data)
+@socketio.on("update_settings")
+def update_settings(data):
+    data_handler.update_settings(data)
+    data_handler.save_config_to_file()
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ gevent
 gevent-websocket
 flask
 flask_socketio
+youtube-search-python
 ytmusicapi
 yt_dlp
 unidecode

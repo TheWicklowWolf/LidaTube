@@ -7,38 +7,137 @@
   <link rel="icon" type="image/x-icon" href="{{url_for('static', filename='logo.png')}}">
   <link rel="stylesheet" href="{{url_for('static', filename='style.css')}}">
   <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
-    integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <!-- Bootstrap JS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.min.js"
-    integrity="sha512-WW8/jxkELe2CAiE4LvQfwm1rajOS8PHasCCx+knHG0gBHt8EXxS6T6tJRTGuDQVnluuAvMxWF4j8SNFDKceLFg=="
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.min.js"
+    integrity="sha512-ykZ1QQr0Jy/4ZkvKuqWn4iF3lqPZyij9iRv6sGqLRdTPkY69YX6+7wvVGmsdBbiIfN/8OdsI7HABjvEok6ZopQ=="
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
-    integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA=="
-    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
+    crossorigin="anonymous" referrerpolicy="no-referrer">
   <!-- Socket IO -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"
-    integrity="sha512-zoJXRvW2gC8Z0Xo3lBbao5+AS3g6YWr5ztKqaicua11xHo+AvE1b0lT9ODgrHTmNUxeCw0Ry4BGRYZfXu70weg=="
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"
+    integrity="sha512-tE1z+95+lMCGwy+9PnKgUSIeHhvioC9lMlI7rLWU0Ps3XTdjRygLcy4mLuL0JAoK4TLdQEyP0yOl/9dMOqpH/Q=="
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <title>LidaTube</title>
+  <title>Lidatube</title>
 </head>
 
-<body class="bg-body-secondary bg-gradient">
-  <div class="topBar">
+<body class="bg-dark-subtle">
+  <!-- Top Bar -->
+  <div class="sticky-top">
     <div class="container-fluid bg-dark">
       <div class="top-bar d-flex justify-content-between align-items-center">
-        <h1 class="title text-center text-light flex-grow-1 ms-5">LidaTube</h1>
+        <h1 class="title text-center text-light flex-grow-1 ms-5" id="return-to-top">LidaTube</h1>
         <button class="btn btn-link text-light" id="settings-button" data-bs-toggle="modal"
-          data-bs-target="#configModal">
+          data-bs-target="#config-modal">
           <i class="fa fa-gear fa-2x"></i>
         </button>
       </div>
     </div>
   </div>
 
+  <!-- Cards -->
+  <div class="container-fluid mt-2 card-container">
+    <div class="row cards-row">
+      <div class="col-md-6 col-12 mb-3">
+        <div class="card bg-secondary-subtle h-100" id="lidarr-card">
+          <div class="card-body d-flex flex-column">
+            <div class="row">
+              <div class="col-auto">
+                <img src="{{url_for('static', filename='lidarr.svg')}}" alt="Logo" class="logo">
+              </div>
+              <div class="col-auto">
+                <h2 class="panel-title">Lidarr</h2>
+              </div>
+            </div>
+            <div class="btn-group mt-1">
+              <button class="btn btn-primary w-100" id="get-lidarr-wanted-btn">
+                <span class="spinner-border spinner-border-sm d-none" id="lidarr-spinner" role="status"
+                  aria-hidden="true"></span>
+                Get Lidarr Wanted
+              </button>
+              <button class="btn btn-warning w-100" id="stop-lidarr-btn">Stop</button>
+              <button class="btn btn-danger w-100" id="reset-lidarr-btn">Reset</button>
+            </div>
+            <div class="container non-scrollable my-1 p-0" id="select-all">
+              <div id="lidarr-progress-status-bar" class="progress">
+                <div class="progress-bar-striped bg-success" role="progressbar" aria-valuenow="100" aria-valuemin="0"
+                  aria-valuemax="100"></div>
+              </div>
+            </div>
+            <div class="container scrollable p-0">
+              <div class="table">
+                <table class="table table-striped" id="lidarr-table">
+                  <thead class="thead-sticky">
+                    <tr>
+                      <th>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="select-all-checkbox">
+                        </div>
+                      </th>
+                      <th>Album Name</th>
+                      <th class="text-center">Wanted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Data will be populated dynamically using JavaScript -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-12 mb-3">
+        <div class="card bg-secondary-subtle h-100" id="ytdlp-card">
+          <div class="card-body d-flex flex-column">
+            <div class="row">
+              <div class="col-auto">
+                <img src="{{url_for('static', filename='yt_dlp.png')}}" alt="Logo" class="logo">
+              </div>
+              <div class="col-auto">
+                <h2 class="panel-title">yt_dlp</h2>
+              </div>
+            </div>
+            <div class="btn-group mt-1">
+              <button class="btn btn-primary w-100 " id="start-ytdlp-btn">
+                <span class="spinner-border spinner-border-sm d-none" id="ytdlp-spinner" role="status"
+                  aria-hidden="true"></span>
+                Start</button>
+              <button class="btn btn-warning w-100 " id="stop-ytdlp-btn">Stop</button>
+              <button class="btn btn-danger w-100 " id="reset-ytdlp-btn">Reset</button>
+            </div>
+            <div class="container non-scrollable my-1 p-0" id="progress-bar">
+              <div id="ytdlp-progress-status-bar" class="progress">
+                <div class="progress-bar-striped bg-success" role="progressbar" aria-valuenow="100" aria-valuemin="0"
+                  aria-valuemax="100"></div>
+              </div>
+            </div>
+            <div class="container scrollable p-0">
+              <div class="table">
+                <table class="table table-striped" id="ytdlp-table">
+                  <thead class="thead-sticky">
+                    <tr>
+                      <th>Search Item</th>
+                      <th class="text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Data will be populated dynamically using JavaScript -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal -->
-  <div class="modal fade" id="configModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+  <div class="modal fade" id="config-modal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
     aria-hidden="true">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
@@ -48,40 +147,36 @@
 
         </div>
         <div class="modal-body">
-          <div id="saveMessage" style="display: none;" class="alert alert-success mt-3">
+          <div id="save-message" style="display: none;" class="alert alert-success mt-3">
             Settings saved successfully.
           </div>
           <div class="form-group-modal">
-            <label for="lidarrAddress">Lidarr Address:</label>
-            <input type="text" class="form-control" id="lidarrAddress" placeholder="Enter Lidarr Address">
+            <label for="lidarr-address">Lidarr Address:</label>
+            <input type="text" class="form-control" id="lidarr-address" placeholder="Enter Lidarr Address">
           </div>
-          <div class="form-group-modal my-2">
-            <label for="lidarrApiKey">Lidarr API Key:</label>
-            <input type="text" class="form-control" id="lidarrApiKey" placeholder="Enter Lidarr API Key">
+          <div class="form-group-modal my-3">
+            <label for="lidarr-api-key">Lidarr API Key:</label>
+            <input type="text" class="form-control" id="lidarr-api-key" placeholder="Enter Lidarr API Key">
           </div>
-          <div class="form-group-modal my-2">
-            <label for="lidarrMaxTags">Lidarr Max Albums to retrieve:</label>
-            <input type="number" class="form-control" id="lidarrMaxTags" placeholder="Enter Lidarr Max Tags">
+          <div class="form-group-modal my-3">
+            <label for="sleep-interval">Sleep Interval (Seconds):</label>
+            <input type="number" class="form-control" id="sleep-interval" min="0" placeholder="Enter Sleep Interval">
           </div>
-          <div class="form-group-modal my-2">
-            <label for="lidarrApiTimeout">Lidarr API Timeout (Seconds):</label>
-            <input type="number" class="form-control" id="lidarrApiTimeout" min="0" placeholder="Enter Lidarr Timeout">
-          </div>
-          <div class="form-group-modal my-2">
-            <label for="youtubeSuffix">YouTube search suffix (if required):</label>
-            <input type="text" class="form-control" id="youtubeSuffix" placeholder="Enter YouTube Suffix">
+          <div class="form-group-modal my-3">
+            <label for="sync-schedule">Sync Schedule (comma-separated in 24-hour format):</label>
+            <input type="text" class="form-control" id="sync-schedule" placeholder="Enter Sync Schedule">
           </div>
           <div class="form-group-modal">
-            <label for="sleepInterval">Sleep Interval (Seconds):</label>
-            <input type="number" class="form-control" id="sleepInterval" min="0" placeholder="Enter Sleep Interval">
+            <label for="minimum-match-ratio">Minimum Match Ratio (%):</label>
+            <input type="text" class="form-control" id="minimum-match-ratio" placeholder="Minimum Match Ratio(%)">
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          <button type="button" id="saveChangesBtn" class="btn btn-primary">Save changes</button>
+          <button type="button" id="save-changes-btn" class="btn btn-primary">Save changes</button>
           <i class="fa fa-sun"></i>
           <div class="form-check form-switch">
-            <input class="form-check-input rounded" type="checkbox" id="themeSwitch">
+            <input class="form-check-input rounded" type="checkbox" id="theme-switch">
           </div>
           <i class="fa fa-moon"></i>
         </div>
@@ -89,92 +184,19 @@
     </div>
   </div>
 
-  <div class="left-and-right">
-    <!-- Left Panel -->
-    <div class="panel left rounded">
-      <div class="non-scroll-content-left p-1">
-        <div class="logo-and-title m-1">
-          <img src="{{url_for('static', filename='lidarr.svg')}}" alt="Logo" class="logo">
-          <h2 class="panel-title">Lidarr</h2>
-        </div>
-        <div class="content m-1">
-          <button class="btn btn-primary" id="lidarr_button">Get Missing List</button>
-          <div class="status-and-spinner d-flex align-items-center">
-            <div id="lidarr_spinner" class="spinner-border spinner-border-sm text-primary" style=" display: none;"
-              role="status">
-              <span class="sr-only">Loading...</span>
-            </div>
-            <div class="status-only">
-              <span id="lidarr_status"></span>
-            </div>
-          </div>
-        </div>
-        <div class="common-height">
-          <div id="select-all-container" style=" display: none;">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="select-all">
-              <label class="form-check-label" for="select-all">Select All</label>
-            </div>
-          </div>
-        </div>
+  <!-- Toast -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="toast-template" class="toast d-none" role="alert" aria-live="assertive" aria-atomic="true"
+      data-bs-delay="5000">
+      <div class="toast-header">
+        <strong class="me-auto"></strong>
+        <small class="text-muted"></small>
+        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
       </div>
-
-      <div id="lidarrItemList" class="scrollable-content p-1 bg-light-subtle">
-      </div>
-    </div>
-
-    <!-- Right Panel -->
-    <div class="panel right rounded">
-      <div class="non-scroll-content-right p-1">
-        <div class="text-logo-and-title">
-          <div class="logo-and-title m-1">
-            <img src="{{url_for('static', filename='yt_dlp.png')}}" alt="Logo" class="logo">
-            <h2 class="panel-title">Downloader</h2>
-          </div>
-
-          <div class="content m-1">
-            <div class="form-group">
-              <div class="input-group">
-                <button class="btn btn-primary" id="yt_dlp_button_add">Add</button>
-                <button class="btn btn-warning" id="yt_dlp_button_stop">Stop</button>
-                <button class="btn btn-danger" id="yt_dlp_button_reset">Reset</button>
-                <div class="status-and-spinner d-flex align-items-center ms-1">
-                  <div id="yt_dlp_spinner" class="spinner-border spinner-border-sm text-primary" style=" display: none;"
-                    role="status">
-                    <span class="sr-only">Loading...</span>
-                  </div>
-                  <div class="status-only">
-                    <span id="yt_dlp_status"></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="common-height">
-            <div id="progress-status-bar" class="progress m-2">
-              <div class="progress-bar-striped bg-success" role="progressbar" aria-valuenow="100" aria-valuemin="0"
-                aria-valuemax="100"></div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      <div id="yt_dlpItemList" class="scrollable-content p-1 bg-light-subtle">
-        <table id="yt_dlp-data-table">
-          <thead>
-            <tr>
-              <th>Search Item</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Data will be populated dynamically using JavaScript -->
-          </tbody>
-        </table>
-      </div>
+      <div class="toast-body"></div>
     </div>
   </div>
+
   <script src="{{url_for('static',filename='script.js')}}"></script>
 </body>
 

@@ -1,15 +1,15 @@
 ![Build Status](https://github.com/TheWicklowWolf/LidaTube/actions/workflows/main.yml/badge.svg)
 ![Docker Pulls](https://img.shields.io/docker/pulls/thewicklowwolf/lidatube.svg)
 
-<p align="center">
-  <img src="/src/static/lidatube.png" alt="image">
-</p>
 
 <p align="center">
-  Web GUI for finding and downloading missing Lidarr albums.
+  
+  <img src=src/static/lidatube.png>
+
 </p>
 
----
+Web GUI for finding and downloading missing Lidarr albums.
+
 
 ## Run using docker-compose
 
@@ -19,11 +19,8 @@ services:
   lidatube:
     image: thewicklowwolf/lidatube:latest
     container_name: lidatube
-    environment:
-      - lidarr_address=http://192.168.1.2:8686
-      - lidarr_api_key=1234567890
-      - thread_limit=1
     volumes:
+      - /path/to/config:/lidatube/config
       - /data/media/lidatube:/lidatube/downloads
       - /etc/localtime:/etc/localtime:ro
     ports:
@@ -31,20 +28,38 @@ services:
     restart: unless-stopped
 ```
 
+## Configuration via environment variables
+
+Certain values can be set via environment variables:
+
+* __lidarr_address__: The URL for Lidarr. Defaults to `http://192.168.1.2:8686`.
+* __lidarr_api_key__: The API key for Lidarr. Defaults to ``.
+* __lidarr_api_timeout__: Timeout duration for Lidarr API calls. Defaults to `120`.
+* __thread_limit__: Max number of threads to use. Defaults to `1`.
+* __sleep_interval__: Interval to sleep. Defaults to `0`.
+* __fallback_to_top_result__: Whether to use the top result if no match is found. Defaults to `False`.
+* __library_scan_on_completion__: Whether to scan Lidarr Library on completion. Defaults to `True`.
+* __sync_schedule__: Schedule times to run (comma seperated values in 24hr). Defaults to ``
+* __minimum_match_ratio__: Minimum percentage for a match. Defaults to `90`
+* __secondary_search__: Method for secondary search (YTS or YTDLP). Defaults to `YTS`.
+
 ---
 
 <p align="center">
 
 
-![image](https://github.com/TheWicklowWolf/LidaTube/assets/111055425/f58062ec-4793-4b99-bc6b-67f73f232fba)
-
-
-
-![image](https://github.com/TheWicklowWolf/LidaTube/assets/111055425/851388cc-364c-4b56-8d72-df2e75abb7fb)
+<img src=src/static/light.png>
 
 
 </p>
 
----
+<p align="center">
+
+
+<img src=src/static/dark.png>
+
+
+</p>
+
 
 https://hub.docker.com/r/thewicklowwolf/lidatube

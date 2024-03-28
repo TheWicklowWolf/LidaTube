@@ -13,6 +13,7 @@ RUN mkdir -p /lidatube/downloads
 RUN chown -R $UID:$GID /lidatube
 RUN chmod -R 777 /lidatube/downloads
 # Install requirements and run code as general_user
+ENV PYTHONPATH /lidatube/src
 RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 5000
 USER general_user
