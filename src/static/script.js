@@ -187,7 +187,7 @@ socket.on("lidarr_update", (response) => {
 
         cell1.appendChild(checkbox);
         cell2.appendChild(label);
-        cell3.textContent = item.missing_count;
+        cell3.textContent = `${item.missing_count}/${item.track_count}`;
         cell3.classList.add("text-center");
     });
     select_all_checkbox.checked = all_checked;
