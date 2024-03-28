@@ -417,7 +417,9 @@ class DataHandler:
             if self.ytdlp_stop_event.is_set():
                 req_album["status"] = "Download Stopped"
             else:
-                if grabbed_count + existing_count == total_req:
+                if total_req < req_album["missing_count"]:
+                    req_album["status"] = "Album Incomplete"
+                elif grabbed_count + existing_count == total_req:
                     req_album["status"] = "Download Complete"
                 elif error_count == total_req:
                     req_album["status"] = "Download Failed"
