@@ -1,216 +1,255 @@
-var lidarrButton = document.getElementById('lidarr_button');
-var lidarrSpinner = document.getElementById('lidarr_spinner');
-var lidarrStatus = document.getElementById('lidarr_status');
-var yt_dlpSpinner = document.getElementById('yt_dlp_spinner');
-var yt_dlpStatus = document.getElementById('yt_dlp_status');
-var addButton = document.getElementById('yt_dlp_button_add');
-var stopButton = document.getElementById('yt_dlp_button_stop');
-var resetButton = document.getElementById('yt_dlp_button_reset');
-var lidarrItemList = document.getElementById("lidarrItemList");
-var selectAllCheckbox = document.getElementById("select-all");
-var selectAllContainer = document.getElementById("select-all-container");
-var progress_bar = document.getElementById('progress-status-bar');
-var yt_dlpDataTable = document.getElementById('yt_dlp-data-table').getElementsByTagName('tbody')[0];
-var configModal = document.getElementById('configModal');
-var saveMessage = document.getElementById("saveMessage");
-var saveChangesButton = document.getElementById("saveChangesBtn");
-const lidarrAddress = document.getElementById("lidarrAddress");
-const lidarrApiKey = document.getElementById("lidarrApiKey");
-const lidarrApiTimeout = document.getElementById("lidarrApiTimeout");
-const lidarrMaxTags = document.getElementById("lidarrMaxTags");
-const youtubeSuffix = document.getElementById("youtubeSuffix");
-const sleepInterval = document.getElementById("sleepInterval");
-var lidarr_items = [];
+var get_wanted_lidarr = document.getElementById('get-lidarr-wanted-btn');
+var stop_lidarr = document.getElementById('stop-lidarr-btn');
+var reset_lidarr = document.getElementById('reset-lidarr-btn');
+var lidarr_spinner = document.getElementById('lidarr-spinner');
+var lidarr_progress_bar = document.getElementById('lidarr-progress-status-bar');
+var lidarr_table = document.getElementById('lidarr-table').getElementsByTagName('tbody')[0];
+var select_all_checkbox = document.getElementById("select-all-checkbox");
+
+var start_ytdlp = document.getElementById('start-ytdlp-btn');
+var stop_ytdlp = document.getElementById('stop-ytdlp-btn');
+var reset_ytdlp = document.getElementById('reset-ytdlp-btn');
+var ytdlp_progress_bar = document.getElementById('ytdlp-progress-status-bar');
+var ytdlp_table = document.getElementById('ytdlp-table').getElementsByTagName('tbody')[0];
+
+var config_modal = document.getElementById('config-modal');
+var save_message = document.getElementById("save-message");
+var save_changes_button = document.getElementById("save-changes-btn");
+const lidarr_address = document.getElementById("lidarr-address");
+const lidarr_api_key = document.getElementById("lidarr-api-key");
+const sleep_interval = document.getElementById("sleep-interval");
+const sync_schedule = document.getElementById("sync-schedule");
+const minimum_match_ratio = document.getElementById("minimum-match-ratio");
 var socket = io();
 
-selectAllCheckbox.addEventListener("change", function () {
-    var isChecked = this.checked;
+lidarr_progress_bar.style.width = "0%";
+lidarr_progress_bar.setAttribute("aria-valuenow", 0);
+
+function check_if_all_true() {
+    var all_checked = true;
     var checkboxes = document.querySelectorAll('input[name="lidarr_item"]');
     checkboxes.forEach(function (checkbox) {
-        checkbox.checked = isChecked;
-    });
-});
-
-lidarrButton.addEventListener('click', function () {
-    lidarrButton.disabled = true;
-    lidarrSpinner.style.display = "inline-flex";
-    lidarrStatus.textContent = "Accessing Lidarr API";
-    lidarrItemList.innerHTML = '';
-    socket.emit("lidarr");
-});
-
-addButton.addEventListener('click', function () {
-    addButton.disabled = true;
-    yt_dlpSpinner.style.display = "inline-flex";
-    var checkedItems = [];
-    for (var i = 0; i < lidarr_items.length; i++) {
-        var checkbox = document.getElementById("lidarr_" + i);
-        if (checkbox.checked) {
-            checkedItems.push(checkbox.value);
+        if (!checkbox.checked) {
+            all_checked = false;
         }
-    }
-    socket.emit("add_to_download_list", { "Data": checkedItems });
-});
-
-stopButton.addEventListener('click', function () {
-    socket.emit("stopper");
-});
-
-configModal.addEventListener('show.bs.modal', function (event) {
-    socket.emit("loadSettings");
-
-    function handleSettingsLoaded(settings) {
-        lidarrAddress.value = settings.lidarrAddress;
-        lidarrApiKey.value = settings.lidarrApiKey;
-        lidarrApiTimeout.value = settings.lidarrApiTimeout;
-        lidarrMaxTags.value = settings.lidarrMaxTags;
-        sleepInterval.value = settings.sleepInterval;
-        youtubeSuffix.value = settings.youtubeSuffix;
-        socket.off("settingsLoaded", handleSettingsLoaded);
-    }
-    socket.on("settingsLoaded", handleSettingsLoaded);
-});
-
-saveChangesButton.addEventListener("click", () => {
-    socket.emit("updateSettings", {
-        "lidarrAddress": lidarrAddress.value,
-        "lidarrApiKey": lidarrApiKey.value,
-        "lidarrApiTimeout": lidarrApiTimeout.value,
-        "lidarrMaxTags": lidarrMaxTags.value,
-        "sleepInterval": sleepInterval.value,
-        "youtubeSuffix": youtubeSuffix.value
     });
-    saveMessage.style.display = "block";
+    select_all_checkbox.checked = all_checked;
+}
+
+function update_progress_bar(percentage, status) {
+    ytdlp_progress_bar.style.width = percentage + "%";
+    ytdlp_progress_bar.setAttribute("aria-valuenow", percentage);
+    ytdlp_progress_bar.classList.remove("progress-bar-striped");
+    ytdlp_progress_bar.classList.remove("progress-bar-animated");
+
+    if (status === "running") {
+        ytdlp_progress_bar.classList.remove("bg-primary", "bg-danger", "bg-dark", "bg-warning");
+        ytdlp_progress_bar.classList.add("bg-success");
+        ytdlp_progress_bar.classList.add("progress-bar-animated");
+
+    } else if (status === "stopped") {
+        ytdlp_progress_bar.classList.remove("bg-primary", "bg-danger", "bg-success", "bg-dark");
+        ytdlp_progress_bar.classList.add("bg-warning");
+
+    } else if (status === "idle") {
+        ytdlp_progress_bar.classList.remove("bg-danger", "bg-success", "bg-primary", "bg-dark");
+        ytdlp_progress_bar.classList.add("bg-primary");
+
+    } else if (status === "complete") {
+        ytdlp_progress_bar.classList.remove("bg-primary", "bg-warning", "bg-success", "bg-danger");
+        ytdlp_progress_bar.classList.add("bg-dark");
+
+    } else if (status === "failed") {
+        ytdlp_progress_bar.classList.remove("bg-primary", "bg-success", "bg-warning", "bg-dark");
+        ytdlp_progress_bar.classList.add("bg-danger");
+    }
+    ytdlp_progress_bar.classList.add("progress-bar-striped");
+}
+
+select_all_checkbox.addEventListener("change", function () {
+    var is_checked = this.checked;
+    var checkboxes = document.querySelectorAll('input[name="lidarr_item"]');
+    checkboxes.forEach(function (checkbox) {
+        checkbox.checked = is_checked;
+    });
+});
+
+get_wanted_lidarr.addEventListener('click', function () {
+    get_wanted_lidarr.disabled = true;
+    lidarr_spinner.classList.remove('d-none');
+    lidarr_table.innerHTML = '';
+    socket.emit("lidarr_get_wanted");
+});
+
+stop_lidarr.addEventListener('click', function () {
+    socket.emit("stop_lidarr");
+    lidarr_spinner.classList.add('d-none');
+    get_wanted_lidarr.disabled = false;
+});
+
+reset_lidarr.addEventListener('click', function () {
+    socket.emit("reset_lidarr");
+    lidarr_table.innerHTML = '';
+    lidarr_spinner.classList.add('d-none');
+    get_wanted_lidarr.disabled = false;
+});
+
+config_modal.addEventListener('show.bs.modal', function (event) {
+    socket.emit("load_settings");
+    function handle_settings_loaded(settings) {
+        lidarr_address.value = settings.lidarr_address;
+        lidarr_api_key.value = settings.lidarr_api_key;
+        sleep_interval.value = settings.sleep_interval;
+        sync_schedule.value = settings.sync_schedule.join(', ');
+        minimum_match_ratio.value = settings.minimum_match_ratio;
+        socket.off("settings_loaded", handle_settings_loaded);
+    }
+    socket.on("settings_loaded", handle_settings_loaded);
+});
+
+save_changes_button.addEventListener("click", () => {
+    socket.emit("update_settings", {
+        "lidarr_address": lidarr_address.value,
+        "lidarr_api_key": lidarr_api_key.value,
+        "sleep_interval": sleep_interval.value,
+        "sync_schedule": sync_schedule.value,
+        "minimum_match_ratio": minimum_match_ratio.value
+    });
+    save_message.style.display = "block";
     setTimeout(function () {
-        saveMessage.style.display = "none";
+        save_message.style.display = "none";
     }, 1000);
 });
 
-resetButton.addEventListener('click', function () {
-    socket.emit("reset");
-    yt_dlpDataTable.innerHTML = '';
-    yt_dlpSpinner.style.display = "none";
-    yt_dlpStatus.textContent = "";
+start_ytdlp.addEventListener('click', function () {
+    start_ytdlp.disabled = true;
+    var checked_indices = [];
+    var checkboxes = document.getElementsByName("lidarr_item");
+
+    checkboxes.forEach(function (checkbox, index) {
+        if (checkbox.checked) {
+            checked_indices.push(index);
+        }
+    });
+    socket.emit("add_to_download_list", checked_indices);
+    start_ytdlp.disabled = false;
 });
 
-socket.on("lidarr_status", (response) => {
-    if (response.Status == "Success") {
-        lidarrButton.disabled = false;
-        lidarrStatus.textContent = "Lidarr List Retrieved";
-        lidarrSpinner.style.display = "none";
-        lidarr_items = response.Data;
-        lidarrItemList.innerHTML = '';
-        selectAllContainer.style.display = "block";
-        selectAllCheckbox.checked = false;
-        for (var i = 0; i < lidarr_items.length; i++) {
-            var item = lidarr_items[i];
+stop_ytdlp.addEventListener('click', function () {
+    socket.emit("stop_ytdlp");
+});
 
-            var div = document.createElement("div");
-            div.className = "form-check";
+reset_ytdlp.addEventListener('click', function () {
+    socket.emit("reset_ytdlp");
+    ytdlp_table.innerHTML = '';
+});
 
-            var input = document.createElement("input");
-            input.type = "checkbox";
-            input.className = "form-check-input";
-            input.id = "lidarr_" + i;
-            input.name = "lidarr_item";
-            input.value = item;
-
-            var label = document.createElement("label");
-            label.className = "form-check-label";
-            label.htmlFor = "lidarr_" + i;
-            label.textContent = item;
-
-            input.addEventListener("change", function () {
-                selectAllCheckbox.checked = false;
-            });
-
-            div.appendChild(input);
-            div.appendChild(label);
-
-            lidarrItemList.appendChild(div);
-        }
+socket.on("lidarr_update", (response) => {
+    lidarr_table.innerHTML = '';
+    var all_checked = true;
+    if (response.status == "busy") {
+        get_wanted_lidarr.disabled = true;
+        lidarr_spinner.classList.remove('d-none');
     }
     else {
-        lidarrItemList.innerHTML = '';
-        var errorDiv = document.createElement("div");
-        errorDiv.textContent = response.Code + " : " + response.Data;
-        errorDiv.style.wordBreak = "break-all";
-        lidarrItemList.appendChild(errorDiv);
-        lidarrStatus.textContent = "Error Accessing Lidarr";
+        get_wanted_lidarr.disabled = false;
+        lidarr_spinner.classList.add('d-none');
     }
-    lidarrSpinner.style.display = "none";
-    lidarrButton.disabled = false;
-});
 
-socket.on("yt_dlp_status", (response) => {
-    if (response.Status == "Success") {
-        yt_dlpSpinner.style.display = "none";
-        yt_dlpStatus.textContent = "";
-    } else {
-        yt_dlpStatus.textContent = response.Data;
-    }
-    addButton.disabled = false;
-});
+    select_all_checkbox.style.display = "block";
+    select_all_checkbox.checked = false;
 
-function updateProgressBar(percentage, status) {
-    progress_bar.style.width = percentage + "%";
-    progress_bar.ariaValueNow = percentage + "%";
-    progress_bar.classList.remove("progress-bar-striped");
-    progress_bar.classList.remove("progress-bar-animated");
+    response.data.forEach((item, i) => {
+        if (!item.checked) {
+            all_checked = false;
+        }
+        var row = lidarr_table.insertRow();
 
-    if (status === "Running") {
-        progress_bar.classList.remove("bg-primary", "bg-danger", "bg-dark");
-        progress_bar.classList.add("bg-success");
-        progress_bar.classList.add("progress-bar-animated");
+        var cell1 = row.insertCell(0);
+        var cell2 = row.insertCell(1);
+        var cell3 = row.insertCell(2);
 
-    } else if (status === "Stopped") {
-        progress_bar.classList.remove("bg-primary", "bg-success", "bg-dark");
-        progress_bar.classList.add("bg-danger");
+        var checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "form-check-input";
+        checkbox.id = "lidarr_" + i;
+        checkbox.name = "lidarr_item";
+        checkbox.checked = item.checked;
+        checkbox.addEventListener("change", function () {
+            check_if_all_true();
+        });
 
-    } else if (status === "Idle") {
-        progress_bar.classList.remove("bg-success", "bg-danger", "bg-dark");
-        progress_bar.classList.add("bg-primary");
+        var label = document.createElement("label");
+        label.className = "form-check-label";
+        label.htmlFor = "lidarr_" + i;
 
-    } else if (status === "Complete") {
-        progress_bar.classList.remove("bg-primary", "bg-success", "bg-danger");
-        progress_bar.classList.add("bg-dark");
-    }
-    progress_bar.classList.add("progress-bar-striped");
-}
+        label.textContent = item.artist + " - " + item.album_name;
 
-socket.on("progress_status", (response) => {
-    yt_dlpDataTable.innerHTML = '';
-    response.Data.forEach(function (item) {
-        var row = yt_dlpDataTable.insertRow();
-        var cellItem = row.insertCell(0);
-        var cellLinkFound = row.insertCell(1);
-
-        cellItem.innerHTML = item.Item;
-        cellLinkFound.innerHTML = item.Status;
+        cell1.appendChild(checkbox);
+        cell2.appendChild(label);
+        cell3.textContent = item.missing_count;
+        cell3.classList.add("text-center");
     });
-    var percent_completion = response.Percent_Completion;
-    var actual_status = response.Status;
-    updateProgressBar(percent_completion, actual_status);
+    select_all_checkbox.checked = all_checked;
 });
 
-const themeSwitch = document.getElementById('themeSwitch');
-const savedTheme = localStorage.getItem('theme');
-const savedSwitchPosition = localStorage.getItem('switchPosition');
+socket.on("ytdlp_update", (response) => {
+    ytdlp_table.innerHTML = '';
+    response.data.forEach(function (entry) {
+        var row = ytdlp_table.insertRow();
+        var cell_item = row.insertCell(0);
+        var cell_item_status = row.insertCell(1);
 
-if (savedSwitchPosition) {
-    themeSwitch.checked = savedSwitchPosition === 'true';
+        cell_item.innerHTML = `${entry.artist} - ${entry.album_name}`;
+        cell_item_status.innerHTML = entry.status;
+        cell_item_status.classList.add("text-center");
+    });
+    var percent_completion = response.percent_completion;
+    var actual_status = response.status;
+    update_progress_bar(percent_completion, actual_status);
+});
+
+socket.on("new_toast_msg", function (data) {
+    show_toast(data.title, data.message);
+});
+
+function show_toast(header, message) {
+    var toast_container = document.querySelector('.toast-container');
+    var toast_template = document.getElementById('toast-template').cloneNode(true);
+    toast_template.classList.remove('d-none');
+
+    toast_template.querySelector('.toast-header strong').textContent = header;
+    toast_template.querySelector('.toast-body').textContent = message;
+    toast_template.querySelector('.text-muted').textContent = new Date().toLocaleString();
+
+    toast_container.appendChild(toast_template);
+
+    var toast = new bootstrap.Toast(toast_template);
+    toast.show();
+
+    toast_template.addEventListener('hidden.bs.toast', function () {
+        toast_template.remove();
+    });
 }
 
-if (savedTheme) {
-    document.documentElement.setAttribute('data-bs-theme', savedTheme);
+const theme_switch = document.getElementById('theme-switch');
+const saved_theme = localStorage.getItem('theme');
+const saved_switch_position = localStorage.getItem('switchPosition');
+
+if (saved_switch_position) {
+    theme_switch.checked = saved_switch_position === 'true';
 }
 
-themeSwitch.addEventListener('click', () => {
+if (saved_theme) {
+    document.documentElement.setAttribute('data-bs-theme', saved_theme);
+}
+
+theme_switch.addEventListener('click', () => {
     if (document.documentElement.getAttribute('data-bs-theme') === 'dark') {
         document.documentElement.setAttribute('data-bs-theme', 'light');
     } else {
         document.documentElement.setAttribute('data-bs-theme', 'dark');
     }
     localStorage.setItem('theme', document.documentElement.getAttribute('data-bs-theme'));
-    localStorage.setItem('switchPosition', themeSwitch.checked);
+    localStorage.setItem('switchPosition', theme_switch.checked);
 });
