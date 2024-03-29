@@ -42,6 +42,8 @@ Certain values can be set via environment variables:
 * __sync_schedule__: Schedule times to run (comma seperated values in 24hr). Defaults to ``
 * __minimum_match_ratio__: Minimum percentage for a match. Defaults to `90`
 * __secondary_search__: Method for secondary search (YTS or YTDLP). Defaults to `YTS`.
+* __preferred_codec__: Preferred codec (mp3 or flac). Defaults to `mp3`.
+* __attempt_lidarr_import__: Attempt to import each song directly into Lidarr. Defaults to `False`.
 
 ---
 

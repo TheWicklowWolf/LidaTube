@@ -56,6 +56,8 @@ class DataHandler:
             "sync_schedule": [],
             "minimum_match_ratio": 90,
             "secondary_search": "YTS",
+            "preferred_codec": "mp3",
+            "attempt_lidarr_import": False,
         }
 
         # Load settings from environmental variables (which take precedence) over the configuration file.
@@ -76,6 +78,9 @@ class DataHandler:
         minimum_match_ratio = os.environ.get("minimum_match_ratio", "")
         self.minimum_match_ratio = float(minimum_match_ratio) if minimum_match_ratio else ""
         self.secondary_search = os.environ.get("secondary_search", "")
+        self.preferred_codec = os.environ.get("preferred_codec", "")
+        attempt_lidarr_import = os.environ.get("attempt_lidarr_import", "")
+        self.attempt_lidarr_import = attempt_lidarr_import.lower() == "true" if attempt_lidarr_import != "" else ""
 
         # Load variables from the configuration file if not set by environmental variables.
         try:
@@ -118,6 +123,8 @@ class DataHandler:
                         "sync_schedule": self.sync_schedule,
                         "minimum_match_ratio": self.minimum_match_ratio,
                         "secondary_search": self.secondary_search,
+                        "preferred_codec": self.preferred_codec,
+                        "attempt_lidarr_import": self.attempt_lidarr_import,
                     },
                     json_file,
                     indent=4,
@@ -142,7 +149,7 @@ class DataHandler:
 
                 if within_time_window:
                     self.general_logger.warning(f"Time to Start - as in a time window: {self.sync_schedule}")
-                    self.get_missing_from_lidarr()
+                    self.get_wanted_albums_from_lidarr()
                     if self.lidarr_items:
                         x = list(range(len(self.lidarr_items)))
                         self.add_items_to_download(x)
@@ -159,7 +166,7 @@ class DataHandler:
             self.general_logger.error(f"Error in Scheduler: {str(e)}")
             self.general_logger.error(f"Scheduler Stopped")
 
-    def get_missing_from_lidarr(self):
+    def get_wanted_albums_from_lidarr(self):
         try:
             self.general_logger.warning(f"Accessing Lidarr API")
             self.lidarr_status = "busy"
@@ -181,13 +188,20 @@ class DataHandler:
                             break
                         parsed_date = datetime.fromisoformat(album["releaseDate"].replace("Z", "+00:00"))
                         album_year = parsed_date.year
+                        album_name = _general.convert_to_lidarr_format(album["title"])
+                        album_folder = f"{album_name} ({album_year})"
+                        album_full_path = os.path.join(album["artist"]["path"], album_folder)
+                        album_release_id = album["releases"][0]["id"]
                         new_item = {
                             "artist_id": album["artistId"],
                             "artist_path": album["artist"]["path"],
                             "artist": album["artist"]["artistName"],
-                            "album_name": album["title"],
+                            "album_name": album_name,
+                            "album_folder": album_folder,
+                            "album_full_path": album_full_path,
                             "album_year": album_year,
                             "album_id": album["id"],
+                            "album_release_id": album_release_id,
                             "album_genres": ", ".join(album["genres"]),
                             "track_count": "",
                             "missing_count": "",
@@ -236,7 +250,9 @@ class DataHandler:
                         new_item = {
                             "artist": req_album["artist"],
                             "track_title": track["title"],
-                            "track_number": track["absoluteTrackNumber"],
+                            "track_number": track["trackNumber"],
+                            "absolute_track_number": track["absoluteTrackNumber"],
+                            "track_id": track["id"],
                             "link": "",
                             "title_of_link": "",
                         }
@@ -254,6 +270,38 @@ class DataHandler:
             self.general_logger.error(req_album["album_name"])
             self.general_logger.error(f"Error Getting Missing Tracks: {str(e)}")
             socketio.emit("new_toast_msg", {"title": "Error Getting Missing Tracks", "message": str(e)})
+
+    def attempt_lidarr_song_import(self, req_album, song, filename):
+        try:
+            self.general_logger.warning(f"Attempting import of song via Lidarr API")
+            endpoint = f"{self.lidarr_address}/api/v1/manualimport"
+            headers = {"X-Api-Key": self.lidarr_api_key, "Content-Type": "application/json"}
+            full_file_path = os.path.join(req_album["album_full_path"], filename)
+            data = {
+                "id": song["track_id"],
+                "path": full_file_path,
+                "name": song["track_title"],
+                "artistId": req_album["artist_id"],
+                "albumId": req_album["album_id"],
+                "albumReleaseId": req_album["album_release_id"],
+                "quality": {},
+                "releaseGroup": "",
+                "indexerFlags": 0,
+                "downloadId": "",
+                "additionalFile": False,
+                "replaceExistingFiles": False,
+                "disableReleaseSwitching": False,
+                "rejections": [],
+            }
+            response = requests.post(endpoint, json=[data], headers=headers)
+            if response.status_code == 202:
+                self.general_logger.warning(f"Song import initiated")
+            else:
+                self.general_logger.error(f"Import Attempt - Failed to initiate song import: {response.status_code}")
+                self.general_logger.error(f"Import Attempt - Error message: {response.text}")
+
+        except Exception as e:
+            self.general_logger.error(f"Error occurred while attempting import of song: {str(e)}")
 
     def trigger_lidarr_scan(self):
         try:
@@ -351,8 +399,8 @@ class DataHandler:
                 return
             req_album["status"] = "Starting Download"
             artist_str = os.path.basename(req_album["artist_path"].rstrip("/"))
-            album_name = _general.convert_to_lidarr_format(req_album["album_name"])
-            folder_with_year = f'{album_name} ({req_album["album_year"]})'
+            album_name = req_album["album_name"]
+            folder_with_year = req_album["album_folder"]
             grabbed_count = 0
             existing_count = 0
             error_count = 0
@@ -365,11 +413,12 @@ class DataHandler:
                     title = song["title_of_link"]
                     link = song["link"]
                     title_str = _general.convert_to_lidarr_format(title)
-                    track_no = str(song["track_number"]).zfill(2)
-                    file_name = os.path.join(artist_str, folder_with_year, f"{artist_str} - {album_name} - {track_no} - {title_str}")
+                    track_number = str(song["absolute_track_number"]).zfill(2)
+                    file_name = os.path.join(artist_str, folder_with_year, f"{artist_str} - {album_name} - {track_number} - {title_str}")
                     full_file_path = os.path.join(self.download_folder, file_name)
+                    full_file_path_with_ext = f"{full_file_path}.{self.preferred_codec}"
 
-                    if not os.path.exists(f"{full_file_path}.mp3"):
+                    if not os.path.exists(full_file_path_with_ext):
                         try:
                             ydl_opts = {
                                 "ffmpeg_location": "/usr/bin/ffmpeg",
@@ -382,7 +431,7 @@ class DataHandler:
                                 "postprocessors": [
                                     {
                                         "key": "FFmpegExtractAudio",
-                                        "preferredcodec": "mp3",
+                                        "preferredcodec": self.preferred_codec,
                                         "preferredquality": "0",
                                     },
                                     {
@@ -396,8 +445,10 @@ class DataHandler:
                             yt_downloader = yt_dlp.YoutubeDL(ydl_opts)
                             yt_downloader.download([link])
                             self.general_logger.warning(f"DL Complete : {link}")
-                            _general.add_metadata(self.general_logger, song, req_album, f"{full_file_path}.mp3")
+                            _general.add_metadata(self.general_logger, song, req_album, full_file_path_with_ext)
                             grabbed_count += 1
+                            if self.attempt_lidarr_import:
+                                self.attempt_lidarr_song_import(req_album, song, f"{artist_str} - {album_name} - {track_number} - {title_str}.{self.preferred_codec}")
                             if self.ytdlp_stop_event.is_set():
                                 return
 
@@ -710,7 +761,7 @@ def home():
 
 @socketio.on("lidarr_get_wanted")
 def lidarr():
-    thread = threading.Thread(target=data_handler.get_missing_from_lidarr, name="Lidarr_Thread")
+    thread = threading.Thread(target=data_handler.get_wanted_albums_from_lidarr, name="Lidarr_Thread")
     thread.daemon = True
     thread.start()
 
