@@ -39,8 +39,13 @@ class DataHandler:
         self.clients_connected_counter = 0
         self.config_folder = "config"
         self.download_folder = "downloads"
+
         if not os.path.exists(self.config_folder):
             os.makedirs(self.config_folder)
+
+        full_cookies_path = os.path.join(self.config_folder, "cookies.txt")
+        self.cookies_path = full_cookies_path if os.path.exists(full_cookies_path) else None
+
         self.load_environ_or_config_settings()
 
     def load_environ_or_config_settings(self):
@@ -442,6 +447,8 @@ class DataHandler:
                                     },
                                 ],
                             }
+                            if self.cookies_path:
+                                ydl_opts["cookiefile"] = self.cookies_path
                             yt_downloader = yt_dlp.YoutubeDL(ydl_opts)
                             yt_downloader.download([link])
                             self.general_logger.warning(f"DL Complete : {link}")
