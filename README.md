@@ -45,6 +45,15 @@ Certain values can be set via environment variables:
 * __preferred_codec__: Preferred codec (mp3). Defaults to `mp3`.
 * __attempt_lidarr_import__: Attempt to import each song directly into Lidarr. Defaults to `False`.
 
+
+
+## Cookies (optional)
+To utilize a cookies file with yt-dlp, follow these steps:
+
+* Generate Cookies File: Open your web browser and use a suitable extension (e.g. cookies.txt for Firefox) to extract cookies for a user on YT.
+
+* Save Cookies File: Save the obtained cookies into a file named `cookies.txt` and put it into the config folder.
+
 ---
 
 <p align="center">
