@@ -79,7 +79,7 @@ class DataHandler:
         library_scan_on_completion = os.environ.get("library_scan_on_completion", "")
         self.library_scan_on_completion = library_scan_on_completion.lower() == "true" if library_scan_on_completion != "" else ""
         sync_schedule = os.environ.get("sync_schedule", "")
-        self.sync_schedule = self.parse_sync_schedule(sync_schedule)
+        self.sync_schedule = self.parse_sync_schedule(sync_schedule) if sync_schedule != "" else ""
         minimum_match_ratio = os.environ.get("minimum_match_ratio", "")
         self.minimum_match_ratio = float(minimum_match_ratio) if minimum_match_ratio else ""
         self.secondary_search = os.environ.get("secondary_search", "")
@@ -208,8 +208,8 @@ class DataHandler:
                             "album_id": album["id"],
                             "album_release_id": album_release_id,
                             "album_genres": ", ".join(album["genres"]),
-                            "track_count": "",
-                            "missing_count": "",
+                            "track_count": 0,
+                            "missing_count": 0,
                             "missing_tracks": [],
                             "checked": True,
                             "status": "",
