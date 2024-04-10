@@ -182,7 +182,7 @@ class DataHandler:
                 if self.lidarr_stop_event.is_set():
                     return
                 endpoint = f"{self.lidarr_address}/api/v1/wanted/missing?includeArtist=true"
-                params = {"apikey": self.lidarr_api_key, "page": page, "sortKey": "artists.sortname", "sortDirection": "ascending"}
+                params = {"apikey": self.lidarr_api_key, "page": page}
                 response = requests.get(endpoint, params=params, timeout=self.lidarr_api_timeout)
                 if response.status_code == 200:
                     wanted_missing_albums = response.json()
@@ -223,7 +223,7 @@ class DataHandler:
                     socketio.emit("new_toast_msg", {"title": f"Lidarr API Error: {response.status_code}", "message": response.text})
                     break
 
-            self.lidarr_items.sort(key=lambda x: x["artist"])
+            self.lidarr_items.sort(key=lambda x: (x["artist"], x["album_name"]))
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.thread_limit) as executor:
                 self.lidarr_futures = [executor.submit(self.get_missing_tracks_for_album, album) for album in self.lidarr_items]
