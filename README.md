@@ -14,7 +14,6 @@ Web GUI for finding and downloading missing Lidarr albums.
 ## Run using docker-compose
 
 ```yaml
-version: "2.1"
 services:
   lidatube:
     image: thewicklowwolf/lidatube:latest
