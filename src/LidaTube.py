@@ -431,7 +431,6 @@ class DataHandler:
                                 "outtmpl": full_file_path,
                                 "quiet": False,
                                 "progress_hooks": [self.progress_callback],
-                                "sleepInterval": self.sleep_interval,
                                 "writethumbnail": True,
                                 "postprocessors": [
                                     {
@@ -456,6 +455,8 @@ class DataHandler:
                             grabbed_count += 1
                             if self.attempt_lidarr_import:
                                 self.attempt_lidarr_song_import(req_album, song, f"{artist_str} - {album_name} - {track_number} - {title_str}.{self.preferred_codec}")
+
+                            self.ytdlp_stop_event.wait(self.sleep_interval)
                             if self.ytdlp_stop_event.is_set():
                                 return
 
