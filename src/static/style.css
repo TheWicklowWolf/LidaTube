@@ -13,3 +13,12 @@
     top: 0;
     z-index: 1;
 }
+
+@media screen and (max-width: 600px) {
+    .cards-row{
+        height: 87.5vh;  
+    }
+    .card-body {
+        height: 40vh;  
+    }
+}
