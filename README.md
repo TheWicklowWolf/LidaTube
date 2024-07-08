@@ -8,7 +8,7 @@
 
 </p>
 
-Web GUI for finding and downloading missing Lidarr albums.
+LidaTube is a tool for finding and fetching missing Lidarr albums via yt-dlp.
 
 
 ## Run using docker-compose
