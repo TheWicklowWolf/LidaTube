@@ -2,11 +2,8 @@
 ![Docker Pulls](https://img.shields.io/docker/pulls/thewicklowwolf/lidatube.svg)
 
 
-<p align="center">
-  
-  <img src=src/static/lidatube.png>
 
-</p>
+<img src=src/static/lidatube.png>
 
 LidaTube is a tool for finding and fetching missing Lidarr albums via yt-dlp.
 
@@ -55,21 +52,10 @@ To utilize a cookies file with yt-dlp, follow these steps:
 
 ---
 
-<p align="center">
-
-
 <img src=src/static/light.png>
 
 
-</p>
-
-<p align="center">
-
-
 <img src=src/static/dark.png>
-
-
-</p>
 
 
 https://hub.docker.com/r/thewicklowwolf/lidatube
