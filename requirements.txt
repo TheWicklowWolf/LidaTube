@@ -5,6 +5,6 @@ flask
 flask_socketio
 youtube-search-python
 ytmusicapi
-yt_dlp
+yt_dlp==2024.7.9
 unidecode
 thefuzz
