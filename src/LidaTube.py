@@ -411,12 +411,14 @@ class DataHandler:
             error_count = 0
             song_links = [x for x in req_album["missing_tracks"] if x["link"] != ""]
             total_req = len(song_links)
+            self.general_logger.warning(f"Valid link count of {total_req} for: {artist_str} - {album_name}")
             for song in song_links:
                 if self.ytdlp_stop_event.is_set():
                     return
                 else:
                     title = song["title_of_link"]
                     link = song["link"]
+                    self.general_logger.warning(f"Starting Download of: {title}")
                     title_str = _general.convert_to_lidarr_format(title)
                     track_number = str(song["absolute_track_number"]).zfill(2)
                     file_name = os.path.join(artist_str, folder_with_year, f"{artist_str} - {album_name} - {track_number} - {title_str}")
@@ -505,7 +507,7 @@ class DataHandler:
 
     def _link_finder(self, req_album):
         try:
-            self.general_logger.warning(f'Searching for Album: {req_album["artist"]} - {req_album["album_name"]}')
+            self.general_logger.warning(f'Searching for: {req_album["artist"]} - {req_album["album_name"]}')
             artist = req_album["artist"]
             album_name = req_album["album_name"]
             number_tracks_in_album = req_album["track_count"]
@@ -613,7 +615,7 @@ class DataHandler:
             ytmusic = YTMusic()
             search_results = ytmusic.search(query=query_text, filter="albums", limit=10)
 
-            self.general_logger.warning(f'Searching for whole Album: {req_album["artist"]} - {req_album["album_name"]}')
+            self.general_logger.warning(f'Searching for Whole Album: {req_album["artist"]} - {req_album["album_name"]}')
             album_match = _matcher.album_matcher(self.minimum_match_ratio, artist, album_name, cleaned_artist, cleaned_album, search_results)
             if album_match:
                 req_album["status"] = "Album Found"
@@ -649,7 +651,7 @@ class DataHandler:
                     self.general_logger.warning(f'No search results for album: {req_album["artist"]} - {req_album["album_name"]}')
 
             else:
-                self.general_logger.warning(f'Not matching album for: {req_album["artist"]} - {req_album["album_name"]}')
+                self.general_logger.warning(f'No matching album for: {req_album["artist"]} - {req_album["album_name"]}')
 
         except Exception as e:
             self.general_logger.error(f"Error in Album Search: {str(e)}")
