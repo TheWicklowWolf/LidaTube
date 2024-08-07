@@ -3,7 +3,7 @@ name: autoupdate-yt-dlp
 on:
   workflow_dispatch:
   schedule:
-    - cron: '59 00 * * *'
+    - cron: '00 23 * * *'
 
 jobs:
   autoupdate-yt-dlp:
