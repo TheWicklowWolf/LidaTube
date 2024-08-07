@@ -42,6 +42,11 @@ Certain values can be set via environment variables:
 * __attempt_lidarr_import__: Attempt to import each song directly into Lidarr. Defaults to `False`.
 
 
+## Sync Schedule
+
+Use a comma-separated list of hours to start sync (e.g. `2, 20` will initiate a sync at 2 AM and 8 PM).
+> Note: There is a deadband of up to 10 minutes from the scheduled start time.
+
 
 ## Cookies (optional)
 To utilize a cookies file with yt-dlp, follow these steps:
