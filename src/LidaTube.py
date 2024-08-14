@@ -434,6 +434,7 @@ class DataHandler:
                     if not os.path.exists(full_file_path_with_ext):
                         try:
                             ydl_opts = {
+                                "logger": self.general_logger,
                                 "ffmpeg_location": "/usr/bin/ffmpeg",
                                 "format": "251/best",
                                 "outtmpl": full_file_path,
