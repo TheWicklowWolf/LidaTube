@@ -436,7 +436,7 @@ class DataHandler:
                             ydl_opts = {
                                 "logger": self.general_logger,
                                 "ffmpeg_location": "/usr/bin/ffmpeg",
-                                "format": "bestaudio[ext=m4a]/bestaudio",
+                                "format": "bestaudio",
                                 "outtmpl": full_file_path,
                                 "quiet": False,
                                 "progress_hooks": [self.progress_callback],
