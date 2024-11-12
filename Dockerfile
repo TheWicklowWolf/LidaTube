@@ -12,6 +12,7 @@ COPY . /lidatube
 WORKDIR /lidatube
 
 # Install requirements
+ENV PYTHONPATH /lidatube/src
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Make the script executable
