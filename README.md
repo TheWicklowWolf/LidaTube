@@ -28,6 +28,8 @@ services:
 
 Certain values can be set via environment variables:
 
+* __PUID__: The user ID to run the app with. Defaults to `1000`. 
+* __PGID__: The group ID to run the app with. Defaults to `1000`.
 * __lidarr_address__: The URL for Lidarr. Defaults to `http://192.168.1.2:8686`.
 * __lidarr_api_key__: The API key for Lidarr. Defaults to ``.
 * __lidarr_api_timeout__: Timeout duration for Lidarr API calls. Defaults to `120`.
