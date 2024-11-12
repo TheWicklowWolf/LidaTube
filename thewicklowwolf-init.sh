@@ -52,7 +52,6 @@ echo "-----------------"
 echo "Setting up directories.."
 mkdir -p /lidatube/downloads /lidatube/config /lidatube/cache
 chown -R ${PUID}:${PGID} /lidatube
-chmod -R 775 /lidatube
 
 # Set XDG_CACHE_HOME to use the cache directory
 export XDG_CACHE_HOME=/lidatube/cache
