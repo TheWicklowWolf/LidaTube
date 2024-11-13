@@ -15,6 +15,7 @@ import re
 from thefuzz import fuzz
 import _matcher
 import _general
+import tempfile
 
 
 class DataHandler:
@@ -432,12 +433,17 @@ class DataHandler:
                     full_file_path_with_ext = f"{full_file_path}.{self.preferred_codec}"
 
                     if not os.path.exists(full_file_path_with_ext):
+                        existing_count += 1
+                        self.general_logger.warning(f"File Already Exists: {artist_str} - {title_str}")
+                    else:
                         try:
+                            temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
                             ydl_opts = {
                                 "logger": self.general_logger,
                                 "ffmpeg_location": "/usr/bin/ffmpeg",
                                 "format": "bestaudio",
-                                "outtmpl": full_file_path,
+                                "outtmpl": f"{file_name}.%(ext)s",
+                                "paths": {"home": self.download_folder, "temp": temp_dir.name},
                                 "quiet": False,
                                 "progress_hooks": [self.progress_callback],
                                 "writethumbnail": True,
@@ -473,9 +479,8 @@ class DataHandler:
                             self.general_logger.error(f"Error downloading song: {link}. Error message: {e}")
                             error_count += 1
 
-                    else:
-                        existing_count += 1
-                        self.general_logger.warning(f"File Already Exists: {artist_str} - {title_str}")
+                        finally:
+                            temp_dir.cleanup()
 
                 song_processed_count = grabbed_count + error_count + existing_count
                 req_album["status"] = f"Processed: {song_processed_count} of {total_req}"
