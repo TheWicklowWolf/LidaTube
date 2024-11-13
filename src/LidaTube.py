@@ -432,7 +432,7 @@ class DataHandler:
                     full_file_path = os.path.join(self.download_folder, file_name)
                     full_file_path_with_ext = f"{full_file_path}.{self.preferred_codec}"
 
-                    if not os.path.exists(full_file_path_with_ext):
+                    if os.path.exists(full_file_path_with_ext):
                         existing_count += 1
                         self.general_logger.warning(f"File Already Exists: {artist_str} - {title_str}")
                     else:
