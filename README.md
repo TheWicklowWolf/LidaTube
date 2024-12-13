@@ -42,6 +42,7 @@ Certain values can be set via environment variables:
 * __secondary_search__: Method for secondary search (YTS or YTDLP). Defaults to `YTS`.
 * __preferred_codec__: Preferred codec (mp3). Defaults to `mp3`.
 * __attempt_lidarr_import__: Attempt to import each song directly into Lidarr. Defaults to `False`.
+* __process_thumbnails__: Defines if thumbnails should be processed and embedded. Defaults to `True`.
 
 
 ## Sync Schedule
