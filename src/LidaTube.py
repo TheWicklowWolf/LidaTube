@@ -70,6 +70,7 @@ class DataHandler:
             "secondary_search": "YTS",
             "preferred_codec": "mp3",
             "attempt_lidarr_import": False,
+            "process_thumbnails": True,
         }
 
         # Load settings from environmental variables (which take precedence) over the configuration file.
@@ -93,6 +94,8 @@ class DataHandler:
         self.preferred_codec = os.environ.get("preferred_codec", "")
         attempt_lidarr_import = os.environ.get("attempt_lidarr_import", "")
         self.attempt_lidarr_import = attempt_lidarr_import.lower() == "true" if attempt_lidarr_import != "" else ""
+        process_thumbnails = os.environ.get("process_thumbnails", "")
+        self.process_thumbnails = process_thumbnails.lower() == "true" if process_thumbnails != "" else ""
 
         # Load variables from the configuration file if not set by environmental variables.
         try:
@@ -137,6 +140,7 @@ class DataHandler:
                         "secondary_search": self.secondary_search,
                         "preferred_codec": self.preferred_codec,
                         "attempt_lidarr_import": self.attempt_lidarr_import,
+                        "process_thumbnails": self.process_thumbnails,
                     },
                     json_file,
                     indent=4,
@@ -446,21 +450,19 @@ class DataHandler:
                                 "paths": {"home": self.download_folder, "temp": temp_dir.name},
                                 "quiet": False,
                                 "progress_hooks": [self.progress_callback],
-                                "writethumbnail": True,
+                                "writethumbnail": self.process_thumbnails,
                                 "postprocessors": [
                                     {
                                         "key": "FFmpegExtractAudio",
                                         "preferredcodec": self.preferred_codec,
                                         "preferredquality": "0",
                                     },
-                                    {
-                                        "key": "EmbedThumbnail",
-                                    },
-                                    {
-                                        "key": "FFmpegMetadata",
-                                    },
                                 ],
                             }
+
+                            if self.process_thumbnails:
+                                ydl_opts["postprocessors"].append({"key": "EmbedThumbnail"})
+                                ydl_opts["postprocessors"].append({"key": "FFmpegMetadata"})
                             if self.cookies_path:
                                 ydl_opts["cookiefile"] = self.cookies_path
                             yt_downloader = yt_dlp.YoutubeDL(ydl_opts)
@@ -739,6 +741,7 @@ class DataHandler:
             self.sleep_interval = float(data["sleep_interval"])
             self.minimum_match_ratio = float(data["minimum_match_ratio"])
             self.sync_schedule = self.parse_sync_schedule(data["sync_schedule"])
+            self.process_thumbnails = data["process_thumbnails"].lower() == "true"
 
         except Exception as e:
             self.general_logger.error(f"Failed to update settings: {str(e)}")
@@ -766,6 +769,7 @@ class DataHandler:
             "sleep_interval": self.sleep_interval,
             "sync_schedule": self.sync_schedule,
             "minimum_match_ratio": self.minimum_match_ratio,
+            "process_thumbnails": self.process_thumbnails,
         }
         socketio.emit("settings_loaded", data)
 
