@@ -3,6 +3,7 @@ gevent
 gevent-websocket
 flask
 flask_socketio
+httpx<0.28
 youtube-search-python
 ytmusicapi
 yt_dlp[default]==2024.12.23
