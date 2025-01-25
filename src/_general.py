@@ -2,6 +2,7 @@ import re
 import unidecode
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, TPE2, TYER, TRCK, TCON
 from mutagen.flac import FLAC
+from mutagen.oggopus import OPUS, OGGOPUS
 
 
 def convert_to_lidarr_format(input_string):
@@ -56,6 +57,18 @@ def add_metadata(logger, song, req_album, full_file_path):
             metadata.add(TYER(encoding=3, text=str(req_album["album_year"])))
             metadata.add(TCON(encoding=3, text=str(req_album["album_genres"])))
             metadata.save()
+
+        elif file_extension == ".opus":
+            audio = OggOpus(full_file_path)
+            audio["title"] = song["track_title"]
+            audio["tracknumber"] = str(song["track_number"])
+            audio["artist"] = song["artist"]
+            audio["albumartist"] = req_album["artist"]
+            audio["album"] = req_album["album_name"]
+            audio["date"] = str(req_album["album_year"])
+            audio["genre"] = req_album["album_genres"]
+            audio.save()
+
 
         logger.warning(f"Metadata added for {full_file_path}")
 
