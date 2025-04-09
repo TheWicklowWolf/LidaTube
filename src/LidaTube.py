@@ -44,8 +44,8 @@ class DataHandler:
         self.percent_completion = 0
 
         self.clients_connected_counter = 0
-        self.config_folder = "config"
-        self.download_folder = "downloads"
+        self.config_folder = "./config"
+        self.download_folder = "./downloads"
 
         if not os.path.exists(self.config_folder):
             os.makedirs(self.config_folder)
