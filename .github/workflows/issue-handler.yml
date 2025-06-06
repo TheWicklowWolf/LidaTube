@@ -1,5 +1,9 @@
 name: Close Non-Bug Issues
 
+permissions:
+  issues: write
+  contents: read
+
 on:
   workflow_dispatch:
   
