@@ -2,6 +2,9 @@ import re
 import unidecode
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, TPE2, TYER, TRCK, TCON
 from mutagen.flac import FLAC
+from mutagen.oggopus import OggOpus
+from mutagen.oggvorbis import OggVorbis
+from mutagen.mp4 import MP4
 
 
 def convert_to_lidarr_format(input_string):
@@ -45,6 +48,51 @@ def add_metadata(logger, song, req_album, full_file_path):
             audio["date"] = str(req_album["album_year"])
             audio["genre"] = req_album["album_genres"]
             audio.save()
+
+        elif file_extension in [".opus", ".webm"]:
+            # Handle both .opus and .webm (opus in webm container)
+            try:
+                audio = OggOpus(full_file_path)
+                audio["title"] = song["track_title"]
+                audio["tracknumber"] = str(song["track_number"])
+                audio["artist"] = song["artist"]
+                audio["albumartist"] = req_album["artist"]
+                audio["album"] = req_album["album_name"]
+                audio["date"] = str(req_album["album_year"])
+                audio["genre"] = req_album["album_genres"]
+                audio.save()
+            except Exception as e:
+                logger.warning(f"Could not add metadata to {file_extension} file: {e}")
+
+        elif file_extension in [".m4a", ".aac", ".mp4"]:
+            # Handle AAC/M4A files
+            try:
+                audio = MP4(full_file_path)
+                audio["\xa9nam"] = song["track_title"]
+                audio["trkn"] = [(int(song["track_number"]), 0)]
+                audio["\xa9ART"] = song["artist"]
+                audio["aART"] = req_album["artist"]
+                audio["\xa9alb"] = req_album["album_name"]
+                audio["\xa9day"] = str(req_album["album_year"])
+                audio["\xa9gen"] = req_album["album_genres"]
+                audio.save()
+            except Exception as e:
+                logger.warning(f"Could not add metadata to {file_extension} file: {e}")
+
+        elif file_extension == ".ogg":
+            # Handle Vorbis files
+            try:
+                audio = OggVorbis(full_file_path)
+                audio["title"] = song["track_title"]
+                audio["tracknumber"] = str(song["track_number"])
+                audio["artist"] = song["artist"]
+                audio["albumartist"] = req_album["artist"]
+                audio["album"] = req_album["album_name"]
+                audio["date"] = str(req_album["album_year"])
+                audio["genre"] = req_album["album_genres"]
+                audio.save()
+            except Exception as e:
+                logger.warning(f"Could not add metadata to {file_extension} file: {e}")
 
         elif file_extension == ".mp3":
             metadata = ID3(full_file_path)

@@ -16,6 +16,7 @@ from thefuzz import fuzz
 import _matcher
 import _general
 import tempfile
+import glob
 
 
 class DataHandler:
@@ -410,9 +411,9 @@ class DataHandler:
             if self.ytdlp_stop_event.is_set():
                 return
             req_album["status"] = "Starting Download"
-            artist_str = os.path.basename(req_album["artist_path"].rstrip("/"))
-            album_name = req_album["album_name"]
-            folder_with_year = req_album["album_folder"]
+            artist_str = _general.convert_to_lidarr_format(os.path.basename(req_album["artist_path"].rstrip("/")))
+            album_name = _general.convert_to_lidarr_format(req_album["album_name"])
+            folder_with_year = _general.convert_to_lidarr_format(req_album["album_folder"])
             grabbed_count = 0
             existing_count = 0
             error_count = 0
@@ -438,36 +439,55 @@ class DataHandler:
                     else:
                         try:
                             temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+                            
+                            codec_format_map = {
+                                "aac": "bestaudio[acodec=aac]/bestaudio[ext=m4a]/bestaudio",
+                                "m4a": "bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio"
+                            }
+                            
+                            postprocessors = []
+                            
+                            if self.preferred_codec in codec_format_map:
+                                format_selector = codec_format_map[self.preferred_codec]
+                            else:
+                                format_selector = "bestaudio"
+                                postprocessors.append({
+                                    "key": "FFmpegExtractAudio",
+                                    "preferredcodec": self.preferred_codec,
+                                    "preferredquality": "0",
+                                })
+                            
+                            # thumbnail embedding only for supported formats
+                            if self.preferred_codec in ["mp3", "flac", "m4a", "aac"]:
+                                postprocessors.append({"key": "EmbedThumbnail"})
+                            
+                            postprocessors.append({"key": "FFmpegMetadata"})
+                            
                             ydl_opts = {
                                 "logger": self.general_logger,
                                 "ffmpeg_location": "/usr/bin/ffmpeg",
-                                "format": "bestaudio",
+                                "format": format_selector,
                                 "outtmpl": f"{file_name}.%(ext)s",
                                 "paths": {"home": self.download_folder, "temp": temp_dir.name},
                                 "quiet": False,
                                 "progress_hooks": [self.progress_callback],
-                                "writethumbnail": True,
-                                "postprocessors": [
-                                    {
-                                        "key": "FFmpegExtractAudio",
-                                        "preferredcodec": self.preferred_codec,
-                                        "preferredquality": "0",
-                                    },
-                                    {
-                                        "key": "EmbedThumbnail",
-                                    },
-                                    {
-                                        "key": "FFmpegMetadata",
-                                    },
-                                ],
+                                "writethumbnail": self.preferred_codec in ["mp3", "flac", "m4a", "aac"],
+                                "postprocessors": postprocessors,
                             }
                             if self.cookies_path:
                                 ydl_opts["cookiefile"] = self.cookies_path
                             yt_downloader = yt_dlp.YoutubeDL(ydl_opts)
                             yt_downloader.download([link])
                             self.general_logger.warning(f"DL Complete : {link}")
-                            _general.add_metadata(self.general_logger, song, req_album, full_file_path_with_ext)
-                            grabbed_count += 1
+                            
+                            downloaded_files = glob.glob(f"{full_file_path}.*")
+                            if downloaded_files:
+                                actual_file_path = downloaded_files[0]
+                                _general.add_metadata(self.general_logger, song, req_album, actual_file_path)
+                                grabbed_count += 1
+                            else:
+                                self.general_logger.error(f"Downloaded file not found for: {file_name}")
+                                error_count += 1
                             if self.attempt_lidarr_import:
                                 self.attempt_lidarr_song_import(req_album, song, f"{artist_str} - {album_name} - {track_number} - {title_str}.{self.preferred_codec}")
 
