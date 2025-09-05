@@ -6,6 +6,6 @@ flask_socketio
 httpx<0.28
 youtube-search-python
 ytmusicapi
-yt_dlp[default]==2025.8.27
+yt_dlp[default]==2025.9.5
 unidecode
 thefuzz
