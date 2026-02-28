@@ -22,6 +22,9 @@ const sync_schedule = document.getElementById("sync-schedule");
 const minimum_match_ratio = document.getElementById("minimum-match-ratio");
 var socket = io();
 
+// Track which album rows are expanded
+var expanded_albums = new Set();
+
 lidarr_progress_bar.style.width = "0%";
 lidarr_progress_bar.setAttribute("aria-valuenow", 0);
 
@@ -64,6 +67,50 @@ function update_progress_bar(percentage, status) {
         ytdlp_progress_bar.classList.add("bg-danger");
     }
     ytdlp_progress_bar.classList.add("progress-bar-striped");
+}
+
+function get_track_status_html(track) {
+    if (track.link) {
+        var icon = "&#128279;";
+        var status_class = "text-info";
+        if (track.download_status === "done") {
+            icon = "&#10003;";
+            status_class = "text-success";
+        } else if (track.download_status === "exists") {
+            icon = "&#10003;";
+            status_class = "text-success";
+        } else if (track.download_status === "error") {
+            icon = "&#10007;";
+            status_class = "text-danger";
+        } else if (track.download_status === "downloading") {
+            icon = "&#8635;";
+            status_class = "text-warning";
+        }
+        var safe_title = track.title_of_link.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        var safe_link = track.link.replace(/"/g, '&quot;');
+        return `<small class="${status_class}">${icon}</small> <small><a href="${safe_link}" target="_blank" rel="noopener" title="${safe_link}">${safe_title}</a></small>`;
+    } else {
+        if (track.download_status === "not_found") {
+            return `<small class="text-muted">&#10007; No match found</small>`;
+        }
+        return `<small class="text-muted">Pending</small>`;
+    }
+}
+
+function toggle_album_expand(album_key, idx) {
+    if (expanded_albums.has(album_key)) {
+        expanded_albums.delete(album_key);
+    } else {
+        expanded_albums.add(album_key);
+    }
+    var detail_rows = document.querySelectorAll('.detail-' + idx);
+    detail_rows.forEach(function (dr) {
+        dr.classList.toggle("d-none");
+    });
+    var arrow_span = document.querySelector('.arrow-' + idx);
+    if (arrow_span) {
+        arrow_span.textContent = expanded_albums.has(album_key) ? "\u25BC " : "\u25B6 ";
+    }
 }
 
 select_all_checkbox.addEventListener("change", function () {
@@ -144,6 +191,41 @@ reset_ytdlp.addEventListener('click', function () {
     ytdlp_table.innerHTML = '';
 });
 
+// Manual download submit handler
+document.getElementById("manual-download-submit-btn").addEventListener("click", function () {
+    var artist = document.getElementById("manual-artist").value.trim();
+    var album = document.getElementById("manual-album").value.trim();
+    var year = document.getElementById("manual-year").value.trim();
+    var tracks = document.getElementById("manual-tracks").value.trim();
+    var url = document.getElementById("manual-url").value.trim();
+
+    if (!artist) {
+        show_toast("Error", "Artist name is required");
+        return;
+    }
+    if (!tracks && !url) {
+        show_toast("Error", "Please provide track names or a YouTube URL");
+        return;
+    }
+
+    socket.emit("manual_download", {
+        artist: artist,
+        album_name: album,
+        year: year || new Date().getFullYear(),
+        tracks: tracks,
+        youtube_url: url
+    });
+
+    // Close modal and clear fields
+    var modal = bootstrap.Modal.getInstance(document.getElementById("manual-download-modal"));
+    modal.hide();
+    document.getElementById("manual-artist").value = "";
+    document.getElementById("manual-album").value = "";
+    document.getElementById("manual-year").value = "";
+    document.getElementById("manual-tracks").value = "";
+    document.getElementById("manual-url").value = "";
+});
+
 socket.on("lidarr_update", (response) => {
     lidarr_table.innerHTML = '';
     var all_checked = true;
@@ -195,18 +277,64 @@ socket.on("lidarr_update", (response) => {
 
 socket.on("ytdlp_update", (response) => {
     ytdlp_table.innerHTML = '';
-    response.data.forEach(function (entry) {
+    response.data.forEach(function (entry, idx) {
+        var album_key = entry.artist + "|" + entry.album_name;
+        var is_expanded = expanded_albums.has(album_key);
+
+        // Main album row
         var row = ytdlp_table.insertRow();
+        row.className = "album-row";
+        row.style.cursor = "pointer";
+        row.dataset.artist = entry.artist;
+        row.dataset.album = entry.album_name;
+
         var cell_item = row.insertCell(0);
         var cell_item_status = row.insertCell(1);
 
-        cell_item.innerHTML = `${entry.artist} - ${entry.album_name}`;
+        var arrow = is_expanded ? "\u25BC " : "\u25B6 ";
+        var manual_badge = entry.is_manual ? ' <span class="badge bg-info">Manual</span>' : '';
+        cell_item.innerHTML = `<span class="expand-arrow arrow-${idx}">${arrow}</span>${entry.artist} - ${entry.album_name}${manual_badge}`;
         cell_item_status.innerHTML = entry.status;
         cell_item_status.classList.add("text-center");
+
+        (function (ak, i) {
+            row.addEventListener("click", function () {
+                toggle_album_expand(ak, i);
+            });
+        })(album_key, idx);
+
+        // Track detail rows
+        if (entry.missing_tracks) {
+            entry.missing_tracks.forEach(function (track) {
+                var detail_row = ytdlp_table.insertRow();
+                detail_row.className = "detail-" + idx + " track-detail-row";
+                if (!is_expanded) {
+                    detail_row.classList.add("d-none");
+                }
+
+                var cell_track = detail_row.insertCell(0);
+                var cell_source = detail_row.insertCell(1);
+
+                var track_num = String(track.absolute_track_number).padStart(2, '0');
+                cell_track.innerHTML = `<small class="text-muted ms-3">${track_num}. ${track.track_title}</small>`;
+                cell_source.innerHTML = get_track_status_html(track);
+                cell_source.classList.add("text-center");
+            });
+        }
     });
     var percent_completion = response.percent_completion;
     var actual_status = response.status;
     update_progress_bar(percent_completion, actual_status);
+});
+
+// Lightweight per-track download progress updates
+socket.on("download_progress", function (data) {
+    var rows = ytdlp_table.querySelectorAll(".album-row");
+    rows.forEach(function (row) {
+        if (row.dataset.artist === data.artist && row.dataset.album === data.album_name) {
+            row.cells[1].innerHTML = data.status;
+        }
+    });
 });
 
 socket.on("new_toast_msg", function (data) {
