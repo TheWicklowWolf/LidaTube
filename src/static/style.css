@@ -14,11 +14,28 @@
     z-index: 1;
 }
 
+.album-row:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+.track-detail-row {
+    font-size: 0.85em;
+}
+.track-detail-row td {
+    padding-top: 2px;
+    padding-bottom: 2px;
+    border-top: none;
+}
+.expand-arrow {
+    display: inline-block;
+    width: 1.2em;
+    text-align: center;
+}
+
 @media screen and (max-width: 600px) {
     .cards-row{
-        height: 87.5vh;  
+        height: 87.5vh;
     }
     .card-body {
-        height: 40vh;  
+        height: 40vh;
     }
 }

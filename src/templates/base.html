@@ -106,6 +106,8 @@
                 <span class="spinner-border spinner-border-sm d-none" id="ytdlp-spinner" role="status"
                   aria-hidden="true"></span>
                 Download</button>
+              <button class="btn btn-info w-100" id="manual-download-btn" data-bs-toggle="modal"
+                data-bs-target="#manual-download-modal">Manual</button>
               <button class="btn btn-warning w-100 " id="stop-ytdlp-btn">Stop</button>
               <button class="btn btn-danger w-100 " id="reset-ytdlp-btn">Reset</button>
             </div>
@@ -180,6 +182,50 @@
             <input class="form-check-input rounded" type="checkbox" id="theme-switch">
           </div>
           <i class="fa fa-moon"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Download Modal -->
+  <div class="modal fade" id="manual-download-modal" tabindex="-1" role="dialog" aria-labelledby="manualDownloadLabel"
+    aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="manualDownloadLabel">Manual Download</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label for="manual-artist">Artist Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="manual-artist" placeholder="e.g. Pink Floyd" required>
+          </div>
+          <div class="form-group mb-3">
+            <label for="manual-album">Album Name</label>
+            <input type="text" class="form-control" id="manual-album"
+              placeholder="e.g. The Dark Side of the Moon (optional)">
+          </div>
+          <div class="form-group mb-3">
+            <label for="manual-year">Year</label>
+            <input type="number" class="form-control" id="manual-year" placeholder="e.g. 1973 (optional)" min="1900"
+              max="2099">
+          </div>
+          <hr>
+          <div class="form-group mb-3">
+            <label for="manual-tracks">Track Names (one per line)</label>
+            <textarea class="form-control" id="manual-tracks" rows="5"
+              placeholder="Enter track names, one per line"></textarea>
+          </div>
+          <div class="text-center text-muted mb-3">&mdash; OR &mdash;</div>
+          <div class="form-group mb-3">
+            <label for="manual-url">YouTube URL</label>
+            <input type="text" class="form-control" id="manual-url" placeholder="YouTube video or playlist URL">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="manual-download-submit-btn">Add to Queue</button>
         </div>
       </div>
     </div>

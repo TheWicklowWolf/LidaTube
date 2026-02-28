@@ -410,7 +410,15 @@ class DataHandler:
 
     def find_link_and_download(self, req_album):
         try:
-            self._link_finder(req_album)
+            # Skip link finding if all tracks already have links (e.g., manual URL download)
+            has_tracks = len(req_album["missing_tracks"]) > 0
+            all_linked = has_tracks and all(t["link"] != "" for t in req_album["missing_tracks"])
+            if not all_linked:
+                self._link_finder(req_album)
+            else:
+                req_album["status"] = "All Tracks Found"
+                socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+
             if self.ytdlp_stop_event.is_set():
                 return
             req_album["status"] = "Starting Download"
@@ -422,6 +430,12 @@ class DataHandler:
             error_count = 0
             song_links = [x for x in req_album["missing_tracks"] if x["link"] != ""]
             total_req = len(song_links)
+
+            # Mark tracks without links as not found
+            for track in req_album["missing_tracks"]:
+                if track["link"] == "":
+                    track["download_status"] = "not_found"
+
             self.general_logger.warning(f"Valid link count of {total_req} for: {artist_str} - {album_name}")
             for song in song_links:
                 if self.ytdlp_stop_event.is_set():
@@ -429,6 +443,7 @@ class DataHandler:
                 else:
                     title = song["title_of_link"]
                     link = song["link"]
+                    song["download_status"] = "downloading"
                     self.general_logger.warning(f"Starting Download of: {title}")
                     title_str = _general.convert_to_lidarr_format(title)
                     track_number = str(song["absolute_track_number"]).zfill(2)
@@ -438,10 +453,12 @@ class DataHandler:
 
                     if os.path.exists(full_file_path_with_ext):
                         existing_count += 1
+                        song["download_status"] = "exists"
                         self.general_logger.warning(f"File Already Exists: {artist_str} - {title_str}")
                     else:
                         try:
                             temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+                            track_idx = grabbed_count + error_count + existing_count + 1
                             ydl_opts = {
                                 "logger": self.general_logger,
                                 "ffmpeg_location": "/usr/bin/ffmpeg",
@@ -449,7 +466,7 @@ class DataHandler:
                                 "outtmpl": f"{file_name}.%(ext)s",
                                 "paths": {"home": self.download_folder, "temp": temp_dir.name},
                                 "quiet": False,
-                                "progress_hooks": [self.progress_callback],
+                                "progress_hooks": [self._make_progress_hook(req_album, title, track_idx, total_req)],
                                 "writethumbnail": self.process_thumbnails,
                                 "postprocessors": [
                                     {
@@ -470,7 +487,8 @@ class DataHandler:
                             self.general_logger.warning(f"DL Complete : {link}")
                             _general.add_metadata(self.general_logger, song, req_album, full_file_path_with_ext)
                             grabbed_count += 1
-                            if self.attempt_lidarr_import:
+                            song["download_status"] = "done"
+                            if self.attempt_lidarr_import and req_album.get("artist_id") is not None:
                                 self.attempt_lidarr_song_import(req_album, song, f"{artist_str} - {album_name} - {track_number} - {title_str}.{self.preferred_codec}")
 
                             self.ytdlp_stop_event.wait(self.sleep_interval)
@@ -480,6 +498,7 @@ class DataHandler:
                         except Exception as e:
                             self.general_logger.error(f"Error downloading song: {link}. Error message: {e}")
                             error_count += 1
+                            song["download_status"] = "error"
 
                         finally:
                             temp_dir.cleanup()
@@ -510,14 +529,34 @@ class DataHandler:
             self.percent_completion = 100 * (self.index / len(self.ytdlp_items)) if self.ytdlp_items else 0
             socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
 
-    def progress_callback(self, d):
-        if self.ytdlp_stop_event.is_set():
-            raise Exception("Cancelled")
-        if d["status"] == "finished":
-            self.general_logger.warning("Download complete")
+    def _make_progress_hook(self, req_album, song_title, track_idx, total_tracks):
+        last_emit = [0]
 
-        elif d["status"] == "downloading":
-            self.general_logger.warning(f'Downloaded {d["_percent_str"]} of {d["_total_bytes_str"]} at {d["_speed_str"]}')
+        def hook(d):
+            if self.ytdlp_stop_event.is_set():
+                raise Exception("Cancelled")
+            if d["status"] == "downloading":
+                now = time.time()
+                if now - last_emit[0] >= 0.5:
+                    last_emit[0] = now
+                    percent = d.get("_percent_str", "").strip() if d.get("_percent_str") else ""
+                    speed = d.get("_speed_str", "").strip() if d.get("_speed_str") else ""
+                    status_msg = f"Downloading ({track_idx}/{total_tracks})"
+                    if percent:
+                        status_msg += f": {percent}"
+                    if speed:
+                        status_msg += f" @ {speed}"
+                    req_album["status"] = status_msg
+                    socketio.emit("download_progress", {
+                        "artist": req_album["artist"],
+                        "album_name": req_album["album_name"],
+                        "status": status_msg,
+                        "current_track": song_title,
+                    })
+            elif d["status"] == "finished":
+                self.general_logger.warning(f"Download finished: {song_title}")
+
+        return hook
 
     def _link_finder(self, req_album):
         try:
@@ -693,6 +732,114 @@ class DataHandler:
         except Exception as e:
             self.general_logger.error(f"Error in YouTube Search: {str(e)}")
 
+    def process_manual_download(self, data):
+        try:
+            artist = data.get("artist", "").strip()
+            album_name = data.get("album_name", "").strip() or "Manual Downloads"
+            year = data.get("year", datetime.now().year)
+            tracks_text = data.get("tracks", "").strip()
+            youtube_url = data.get("youtube_url", "").strip()
+
+            if not artist:
+                socketio.emit("new_toast_msg", {"title": "Error", "message": "Artist name is required"})
+                return
+
+            artist_path = _general.convert_to_lidarr_format(artist)
+            album_name_clean = _general.convert_to_lidarr_format(album_name)
+            album_folder = f"{album_name_clean} ({year})"
+
+            missing_tracks = []
+
+            if youtube_url:
+                try:
+                    socketio.emit("new_toast_msg", {"title": "Manual Download", "message": "Extracting info from URL..."})
+                    ydl_opts = {"quiet": True, "extract_flat": True}
+                    if self.cookies_path:
+                        ydl_opts["cookiefile"] = self.cookies_path
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(youtube_url, download=False)
+
+                    if "entries" in info:
+                        entries = [e for e in info.get("entries", []) if e is not None]
+                    else:
+                        entries = [info]
+
+                    for i, entry in enumerate(entries):
+                        video_id = entry.get("id", "")
+                        video_url = entry.get("webpage_url") or entry.get("url", "")
+                        if video_url and not video_url.startswith("http"):
+                            video_url = f"https://www.youtube.com/watch?v={video_id}" if video_id else youtube_url
+                        missing_tracks.append({
+                            "artist": artist,
+                            "track_title": entry.get("title", f"Track {i + 1}"),
+                            "track_number": str(i + 1),
+                            "absolute_track_number": i + 1,
+                            "track_id": None,
+                            "link": video_url,
+                            "title_of_link": entry.get("title", ""),
+                        })
+
+                except Exception as e:
+                    self.general_logger.error(f"Error extracting URL info: {e}")
+                    socketio.emit("new_toast_msg", {"title": "Error", "message": f"Failed to extract URL info: {e}"})
+                    return
+
+            elif tracks_text:
+                track_lines = [t.strip() for t in tracks_text.split("\n") if t.strip()]
+                for i, track_name in enumerate(track_lines):
+                    missing_tracks.append({
+                        "artist": artist,
+                        "track_title": track_name,
+                        "track_number": str(i + 1),
+                        "absolute_track_number": i + 1,
+                        "track_id": None,
+                        "link": "",
+                        "title_of_link": "",
+                    })
+            else:
+                socketio.emit("new_toast_msg", {"title": "Error", "message": "Provide track names or a YouTube URL"})
+                return
+
+            new_item = {
+                "artist_id": None,
+                "artist_path": artist_path,
+                "artist": artist,
+                "album_name": album_name_clean,
+                "album_folder": album_folder,
+                "album_full_path": "",
+                "album_year": int(year),
+                "album_id": None,
+                "album_release_id": None,
+                "album_genres": "",
+                "track_count": len(missing_tracks),
+                "missing_count": len(missing_tracks),
+                "missing_tracks": missing_tracks,
+                "checked": True,
+                "status": "Queued (Manual)",
+                "is_manual": True,
+            }
+
+            self.ytdlp_stop_event.clear()
+            if self.ytdlp_status == "complete" or self.ytdlp_status == "stopped":
+                self.ytdlp_items = []
+                self.percent_completion = 0
+
+            self.ytdlp_items.append(new_item)
+
+            if not self.ytdlp_in_progress_flag:
+                self.index = 0
+                self.ytdlp_in_progress_flag = True
+                thread = threading.Thread(target=self.master_queue, name="Queue_Thread")
+                thread.daemon = True
+                thread.start()
+
+            socketio.emit("ytdlp_update", {"status": self.ytdlp_status, "data": self.ytdlp_items, "percent_completion": self.percent_completion})
+            socketio.emit("new_toast_msg", {"title": "Manual Download", "message": f"Added {artist} - {album_name_clean} to queue"})
+
+        except Exception as e:
+            self.general_logger.error(f"Error in manual download: {e}")
+            socketio.emit("new_toast_msg", {"title": "Error", "message": str(e)})
+
     def reset_lidarr(self):
         self.lidarr_stop_event.set()
         for future in self.lidarr_futures:
@@ -836,6 +983,13 @@ def load_settings():
 def update_settings(data):
     data_handler.update_settings(data)
     data_handler.save_config_to_file()
+
+
+@socketio.on("manual_download")
+def manual_download(data):
+    thread = threading.Thread(target=data_handler.process_manual_download, args=(data,), name="Manual_DL_Thread")
+    thread.daemon = True
+    thread.start()
 
 
 if __name__ == "__main__":
