@@ -63,7 +63,7 @@ def album_matcher(minimum_match_ratio, artist, album_name, cleaned_artist, clean
         if item["type"] != item_wanted_type:
             continue
         raw_album_match_ratio = fuzz.ratio(album_name, item["title"])
-        artists_string = "".join([item["artists"][x]["name"] for x in range(1, len(item["artists"]))])
+        artists_string = "".join([item["artists"][x]["name"] for x in range(len(item["artists"]))])
         raw_artist_match_ratio = fuzz.ratio(artist, artists_string)
 
         cleaned_yt_album_name = _general.string_cleaner(item["title"]).lower()
@@ -158,7 +158,7 @@ def song_matcher_yt(minimum_match_ratio, query_text, search_results):
         combined_match_ratio = (title_similarity + cleaned_title_similarity + cleaned_title_minus_keywords_similarity) / 3
 
         if combined_match_ratio > best_match_rating:
-            best_match_rating = title_similarity
+            best_match_rating = combined_match_ratio
             best_match_item = item
 
             if combined_match_ratio == 100:

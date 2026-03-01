@@ -51,7 +51,7 @@ echo "-----------------"
 # Create the required directories with the correct permissions
 echo "Setting up directories.."
 mkdir -p /lidatube/downloads /lidatube/config /lidatube/cache
-chown -R ${PUID}:${PGID} /lidatube
+chown -R ${PUID}:${PGID} /lidatube/downloads /lidatube/config /lidatube/cache
 
 # Set XDG_CACHE_HOME to use the cache directory
 export XDG_CACHE_HOME=/lidatube/cache

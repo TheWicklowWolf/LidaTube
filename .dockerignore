@@ -1,0 +1,15 @@
+.git
+.github
+.gitignore
+.dockerignore
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.venv
+.env
+*.md
+LICENSE
+downloads/
+config/
+cache/

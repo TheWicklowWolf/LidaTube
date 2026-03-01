@@ -57,7 +57,7 @@ def add_metadata(logger, song, req_album, full_file_path):
             metadata.add(TCON(encoding=3, text=str(req_album["album_genres"])))
             metadata.save()
 
-        logger.warning(f"Metadata added for {full_file_path}")
+        logger.info(f"Metadata added for {full_file_path}")
 
     except Exception as e:
         logger.error(f"Error adding metadata for {full_file_path}: {e}")
