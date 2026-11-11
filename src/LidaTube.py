@@ -463,8 +463,8 @@ class DataHandler:
                             }
                             if self.cookies_path:
                                 ydl_opts["cookiefile"] = self.cookies_path
-                            yt_downloader = yt_dlp.YoutubeDL(ydl_opts)
-                            yt_downloader.download([link])
+                            with yt_dlp.YoutubeDL(ydl_opts) as yt_downloader:
+                                yt_downloader.download([link])
                             self.general_logger.warning(f"DL Complete : {link}")
                             _general.add_metadata(self.general_logger, song, req_album, full_file_path_with_ext)
                             grabbed_count += 1
